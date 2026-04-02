@@ -1,18 +1,17 @@
 import json
 import os
-import smtplib
 import schedule
 import time
 import logging
+import urllib.request
+import urllib.error
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 from config import (
     CELESC_URL_SELECAO, CELESC_URL_PROJETISTA,
-    EMAIL_REMETENTE, EMAIL_SENHA, EMAIL_DESTINATARIO,
-    SMTP_HOST, SMTP_PORT, ARQUIVO_HISTORICO, HORARIO_EXECUCAO, HEADLESS
+    WEBHOOK_URL, ARQUIVO_HISTORICO, COOKIES_PATH,
+    HORARIO_EXECUCAO, HEADLESS
 )
 
 # Configuracao de logs
@@ -112,7 +111,6 @@ def verificar_sessao(page) -> bool:
     url_atual = page.url
     if "login" in url_atual or "auth" in url_atual:
         return False
-    # Verifica se tem conteudo de protocolos na pagina
     total = page.evaluate(JS_CONTAR_PROTOCOLOS)
     return total > 0
 
@@ -123,7 +121,6 @@ def coletar_todos_protocolos(page) -> list[dict]:
     page.goto(CELESC_URL_SELECAO, wait_until="networkidle")
     page.wait_for_timeout(3000)
 
-    # Verificar se sessao esta valida
     if not verificar_sessao(page):
         raise RuntimeError(
             "Sessao expirada! Os cookies nao sao mais validos. "
@@ -136,11 +133,9 @@ def coletar_todos_protocolos(page) -> list[dict]:
     resultados = []
 
     for idx in range(total):
-        # Voltar a pagina de selecao
         page.goto(CELESC_URL_SELECAO, wait_until="networkidle")
         page.wait_for_timeout(2000)
 
-        # Clicar no protocolo
         resultado = page.evaluate(JS_CLICAR_PROTOCOLO, idx)
         if not resultado.get("success"):
             log.warning(f"  Nao foi possivel clicar no protocolo idx={idx}: {resultado.get('msg')}")
@@ -149,7 +144,6 @@ def coletar_todos_protocolos(page) -> list[dict]:
         protocolo_num = resultado.get("protocolo", "?")
         log.info(f"  [{idx+1}/{total}] Coletando protocolo {protocolo_num}...")
 
-        # Aguardar carregamento da pagina do protocolo
         try:
             page.wait_for_url("**/pagina-inicial/projetista**", timeout=10000)
             page.wait_for_load_state("networkidle", timeout=10000)
@@ -157,7 +151,6 @@ def coletar_todos_protocolos(page) -> list[dict]:
         except PlaywrightTimeout:
             log.warning(f"  Timeout aguardando pagina do protocolo {protocolo_num}")
 
-        # Extrair dados
         dados = page.evaluate(JS_EXTRAIR_STATUS)
         dados["coletadoEm"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         resultados.append(dados)
@@ -191,7 +184,6 @@ def detectar_mudancas(anteriores: list[dict], atuais: list[dict]) -> list[dict]:
     mapa_anterior = {r["protocol"]: r for r in anteriores}
     mapa_atual = {r["protocol"]: r for r in atuais}
 
-    # Protocolos novos
     for prot, dados in mapa_atual.items():
         if prot not in mapa_anterior:
             mudancas.append({
@@ -206,11 +198,9 @@ def detectar_mudancas(anteriores: list[dict], atuais: list[dict]) -> list[dict]:
         ant = mapa_anterior[prot]
         atu = mapa_atual[prot]
 
-        # Comparar servicos e etapas
         mapa_svc_ant = {s["nome"]: s for s in ant.get("services", [])}
         mapa_svc_atu = {s["nome"]: s for s in atu.get("services", [])}
 
-        # Novos servicos
         for svc_nome, svc in mapa_svc_atu.items():
             if svc_nome not in mapa_svc_ant:
                 mudancas.append({
@@ -222,7 +212,6 @@ def detectar_mudancas(anteriores: list[dict], atuais: list[dict]) -> list[dict]:
                 })
                 continue
 
-            # Comparar etapas do mesmo servico
             etapas_ant = {e["num"]: e for e in mapa_svc_ant[svc_nome].get("etapas", [])}
             etapas_atu = {e["num"]: e for e in svc.get("etapas", [])}
 
@@ -250,7 +239,6 @@ def detectar_mudancas(anteriores: list[dict], atuais: list[dict]) -> list[dict]:
                         "dados": etapa
                     })
 
-        # Protocolo saiu do aguardando para ter servicos
         if ant.get("aguardando") and not atu.get("aguardando") and atu.get("services"):
             mudancas.append({
                 "tipo": "INICIOU_SERVICO",
@@ -264,57 +252,63 @@ def detectar_mudancas(anteriores: list[dict], atuais: list[dict]) -> list[dict]:
 
 
 # ──────────────────────────────────────────────
-# NOTIFICACAO POR E-MAIL
+# NOTIFICACAO VIA WEBHOOK (n8n)
 # ──────────────────────────────────────────────
 
-def enviar_email(mudancas: list[dict], total_protocolos: int):
-    if not EMAIL_REMETENTE or not EMAIL_DESTINATARIO:
-        log.info("E-mail nao configurado. Pulando notificacao.")
+def enviar_webhook(mudancas: list[dict], dados_atuais: list[dict]):
+    """Envia dados para o webhook do n8n."""
+    if not WEBHOOK_URL:
+        log.info("Webhook nao configurado. Pulando notificacao.")
         return
 
-    assunto = (
-        f"[Celesc Monitor] {len(mudancas)} atualizacao(oes) detectada(s) "
-        f"- {datetime.now().strftime('%d/%m/%Y')}"
-    )
-
-    html = f"""
-    <html><body>
-    <h2>Celesc Monitor - Atualizacoes Detectadas</h2>
-    <p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-    <p><b>Total de protocolos monitorados:</b> {total_protocolos}</p>
-    <p><b>Mudancas encontradas:</b> {len(mudancas)}</p>
-    <hr>
-    """
-
-    for m in mudancas:
-        tipo_label = m['tipo'].replace('_', ' ')
-        html += f"""
-        <div style="margin:15px 0; padding:10px; border-left:4px solid #0066cc; background:#f0f4ff">
-            <b>{tipo_label}</b><br>
-            <b>Protocolo:</b> {m['protocolo']}<br>
-            <b>Endereco:</b> {m.get('endereco', '-')}<br>
-            {"<b>Servico:</b> " + m['servico'] + "<br>" if 'servico' in m else ""}
-            <b>Detalhe:</b> {m['detalhe'].replace(chr(10), '<br>')}
-        </div>
-        """
-
-    html += "</body></html>"
+    payload = {
+        "evento": "mudancas_detectadas",
+        "data_execucao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "total_protocolos": len(dados_atuais),
+        "total_mudancas": len(mudancas),
+        "mudancas": mudancas,
+        "protocolos": dados_atuais
+    }
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = assunto
-        msg["From"] = EMAIL_REMETENTE
-        msg["To"] = EMAIL_DESTINATARIO
-        msg.attach(MIMEText(html, "html", "utf-8"))
-
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-            smtp.starttls()
-            smtp.login(EMAIL_REMETENTE, EMAIL_SENHA)
-            smtp.send_message(msg)
-
-        log.info(f"E-mail de notificacao enviado para {EMAIL_DESTINATARIO}")
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            WEBHOOK_URL,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            log.info(f"Webhook enviado com sucesso - status {resp.status}")
+    except urllib.error.HTTPError as e:
+        log.error(f"Erro no webhook - HTTP {e.code}: {e.read().decode()}")
     except Exception as e:
-        log.error(f"Erro ao enviar e-mail: {e}")
+        log.error(f"Erro ao enviar webhook: {e}")
+
+
+def enviar_webhook_sessao_expirada():
+    """Avisa via webhook que a sessao expirou."""
+    if not WEBHOOK_URL:
+        return
+
+    payload = {
+        "evento": "sessao_expirada",
+        "data_execucao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "mensagem": "Sessao da Celesc expirou. Execute salvar_login.py no PC e copie os cookies para o VPS."
+    }
+
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            WEBHOOK_URL,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            log.info(f"Alerta de sessao expirada enviado via webhook - status {resp.status}")
+    except Exception as e:
+        log.error(f"Erro ao enviar alerta de sessao expirada: {e}")
 
 
 # ──────────────────────────────────────────────
@@ -326,11 +320,12 @@ def executar_monitoramento():
     log.info(f"Iniciando monitoramento - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     log.info("=" * 60)
 
-    if not os.path.exists("celesc_cookies.json"):
+    if not os.path.exists(COOKIES_PATH):
         log.error(
-            "Arquivo 'celesc_cookies.json' nao encontrado! "
-            "Execute 'python salvar_login.py' primeiro para salvar sua sessao."
+            f"Arquivo '{COOKIES_PATH}' nao encontrado! "
+            "Execute 'python salvar_login.py' no seu PC e copie o arquivo para o volume /app/data/"
         )
+        enviar_webhook_sessao_expirada()
         return
 
     with sync_playwright() as pw:
@@ -340,19 +335,18 @@ def executar_monitoramento():
             locale="pt-BR"
         )
 
-        # Carregar cookies salvos
-        with open("celesc_cookies.json", "r") as f:
+        with open(COOKIES_PATH, "r") as f:
             cookies = json.load(f)
         context.add_cookies(cookies)
         log.info("Cookies carregados com sucesso.")
 
         page = context.new_page()
 
-        # Coletar dados
         try:
             dados_atuais = coletar_todos_protocolos(page)
         except RuntimeError as e:
             log.error(str(e))
+            enviar_webhook_sessao_expirada()
             browser.close()
             return
         except Exception as e:
@@ -363,7 +357,7 @@ def executar_monitoramento():
         # Renovar cookies ANTES de fechar o browser
         try:
             cookies_atualizados = context.cookies()
-            with open("celesc_cookies.json", "w") as f:
+            with open(COOKIES_PATH, "w") as f:
                 json.dump(cookies_atualizados, f, indent=2)
             log.info("Cookies renovados e salvos.")
         except Exception as e:
@@ -375,23 +369,23 @@ def executar_monitoramento():
     dados_anteriores = carregar_historico()
 
     if not dados_anteriores:
-        log.info("Primeiro registro - salvando como historico base (sem comparacao).")
+        log.info("Primeiro registro - salvando como historico base.")
         salvar_historico(dados_atuais)
+        # Enviar snapshot inicial pro webhook
+        enviar_webhook([], dados_atuais)
         log.info(f"{len(dados_atuais)} protocolos salvos como base.")
         return
 
     mudancas = detectar_mudancas(dados_anteriores, dados_atuais)
 
-    # Relatorio no terminal
     if mudancas:
         log.info(f"\n{len(mudancas)} MUDANCA(S) DETECTADA(S):")
         for m in mudancas:
             log.info(f"  [{m['tipo']}] Protocolo {m['protocolo']}: {m['detalhe']}")
-        enviar_email(mudancas, len(dados_atuais))
+        enviar_webhook(mudancas, dados_atuais)
     else:
         log.info("Nenhuma mudanca detectada.")
 
-    # Salvar historico atualizado
     salvar_historico(dados_atuais)
 
     log.info(f"Monitoramento concluido. Proxima execucao: {HORARIO_EXECUCAO}")
@@ -404,10 +398,8 @@ def executar_monitoramento():
 if __name__ == "__main__":
     log.info(f"Celesc Monitor iniciado. Execucao agendada para {HORARIO_EXECUCAO} diariamente.")
 
-    # Executar imediatamente na primeira vez
     executar_monitoramento()
 
-    # Agendar para rodar todo dia no horario configurado
     schedule.every().day.at(HORARIO_EXECUCAO).do(executar_monitoramento)
 
     while True:

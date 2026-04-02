@@ -7,15 +7,15 @@ load_dotenv()
 CELESC_URL_SELECAO = "https://conecte.celesc.com.br/contrato/selecao"
 CELESC_URL_PROJETISTA = "https://conecte.celesc.com.br/pagina-inicial/projetista"
 
-# Notificacao por e-mail (opcional)
-EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE", "")
-EMAIL_SENHA = os.getenv("EMAIL_SENHA", "")
-EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO", "")
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+# Webhook para notificacoes (n8n)
+WEBHOOK_URL = os.getenv(
+    "WEBHOOK_URL",
+    "https://n8nwebh.otear.com.br/webhook/status-celesc"
+)
 
-# Arquivo de historico
-ARQUIVO_HISTORICO = "dados_anteriores.json"
+# Arquivo de historico e cookies (via env para Docker)
+ARQUIVO_HISTORICO = os.getenv("ARQUIVO_HISTORICO", "dados_anteriores.json")
+COOKIES_PATH = os.getenv("COOKIES_PATH", "celesc_cookies.json")
 
 # Horario de execucao diaria (formato "HH:MM")
 HORARIO_EXECUCAO = "08:00"
