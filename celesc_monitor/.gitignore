@@ -1,0 +1,6 @@
+.env
+celesc_cookies.json
+dados_anteriores.json
+celesc_monitor.log
+__pycache__/
+*.pyc
