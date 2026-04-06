@@ -48,23 +48,26 @@ JS_EXTRAIR_STATUS = """
         }
     }
 
+    const isServico = (s) => s === 'Serviço' || s === 'Servico';
+    const isParada = (s) => s === 'Precisa de ajuda?';
+
     const services = [];
     let i = 0;
     while (i < lines.length) {
-        if (lines[i] === 'Servico' && i + 1 < lines.length) {
+        if (isServico(lines[i]) && i + 1 < lines.length) {
             const svc = { nome: lines[i+1], etapas: [] };
             services.push(svc);
             i += 2;
             while (i < lines.length && ['remove_red_eye','delete_outline'].includes(lines[i])) i++;
-            while (i < lines.length && lines[i] !== 'Servico' && lines[i] !== 'Precisa de ajuda?') {
+            while (i < lines.length && !isServico(lines[i]) && !isParada(lines[i])) {
                 if (/^\\d+$/.test(lines[i]) && +lines[i] >= 1 && +lines[i] <= 20) {
                     const n = lines[i]; i++;
-                    while (i < lines.length && /^(check_circle|radio_button_unchecked|circle|pending)$/.test(lines[i])) i++;
+                    while (i < lines.length && /^(check_circle|radio_button_unchecked|circle|pending|schedule)$/.test(lines[i])) i++;
                     let en = '', ed = '', edc = '';
-                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && lines[i] !== 'Servico') { en = lines[i]; i++; }
+                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && !isServico(lines[i])) { en = lines[i]; i++; }
                     if (i < lines.length && /^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(lines[i])) { ed = lines[i]; i++; }
-                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && lines[i] !== 'Servico' &&
-                        lines[i] !== 'Precisa de ajuda?' && !['remove_red_eye','delete_outline'].includes(lines[i])) {
+                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && !isServico(lines[i]) &&
+                        !isParada(lines[i]) && !['remove_red_eye','delete_outline'].includes(lines[i])) {
                         edc = lines[i]; i++;
                     }
                     if (en) svc.etapas.push({ num: n, etapa: en, data: ed || '-', descricao: edc || '-' });
@@ -73,7 +76,8 @@ JS_EXTRAIR_STATUS = """
         } else { i++; }
     }
 
-    const aguardando = raw.includes('Servicos disponiveis para esse protocolo');
+    const aguardando = raw.includes('Serviços disponíveis para esse protocolo') ||
+                       raw.includes('Servicos disponiveis para esse protocolo');
 
     return { protocol, address, services, aguardando };
 }
@@ -234,7 +238,14 @@ def coletar_todos_protocolos(page) -> list[dict]:
         try:
             page.wait_for_url("**/pagina-inicial/projetista**", timeout=10000)
             page.wait_for_load_state("networkidle", timeout=10000)
-            page.wait_for_timeout(1500)
+            # Aguardar conteudo dos servicos renderizar (Angular)
+            page.wait_for_timeout(3000)
+            try:
+                page.locator('text=/Serviço|Serviços disponíveis/').first.wait_for(
+                    state="visible", timeout=5000
+                )
+            except PlaywrightTimeout:
+                pass
         except PlaywrightTimeout:
             log.warning(f"  Timeout aguardando pagina do protocolo {protocolo_num}")
 
