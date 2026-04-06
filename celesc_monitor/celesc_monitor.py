@@ -362,7 +362,10 @@ def enviar_webhook(mudancas: list[dict], dados_atuais: list[dict]):
         req = urllib.request.Request(
             WEBHOOK_URL,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "CelescMonitor/1.0"
+            },
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -389,7 +392,10 @@ def enviar_webhook_sessao_expirada():
         req = urllib.request.Request(
             WEBHOOK_URL,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "CelescMonitor/1.0"
+            },
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
