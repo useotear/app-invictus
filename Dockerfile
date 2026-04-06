@@ -11,11 +11,11 @@ RUN apt-get update && \
     libxfixes3 fonts-liberation libgl1-mesa-dri && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY celesc_monitor/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     playwright install chromium
 
-COPY config.py celesc_monitor.py ./
+COPY celesc_monitor/config.py celesc_monitor/celesc_monitor.py ./
 
 VOLUME ["/app/data"]
 
