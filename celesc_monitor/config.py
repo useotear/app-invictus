@@ -4,6 +4,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Credenciais Celesc
+CELESC_USER = os.getenv("CELESC_USER", "")
+CELESC_PASSWORD = os.getenv("CELESC_PASSWORD", "")
+
+# URLs Celesc
+CELESC_URL_LOGIN = "https://conecte.celesc.com.br"
 CELESC_URL_SELECAO = "https://conecte.celesc.com.br/contrato/selecao"
 CELESC_URL_PROJETISTA = "https://conecte.celesc.com.br/pagina-inicial/projetista"
 

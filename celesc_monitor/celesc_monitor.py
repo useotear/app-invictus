@@ -9,6 +9,7 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 from config import (
+    CELESC_USER, CELESC_PASSWORD, CELESC_URL_LOGIN,
     CELESC_URL_SELECAO, CELESC_URL_PROJETISTA,
     WEBHOOK_URL, ARQUIVO_HISTORICO, COOKIES_PATH,
     HORARIO_EXECUCAO, HEADLESS
@@ -104,6 +105,92 @@ JS_CONTAR_PROTOCOLOS = """
     return pp.length;
 }
 """
+
+
+def fazer_login(page) -> bool:
+    """Faz login automatico na Celesc usando credenciais do env."""
+    if not CELESC_USER or not CELESC_PASSWORD:
+        log.error("CELESC_USER e CELESC_PASSWORD nao configurados!")
+        return False
+
+    log.info("Iniciando login automatico...")
+    try:
+        # Passo 1: Pagina inicial - digitar email/CPF e clicar "Continuar"
+        for tentativa in range(3):
+            try:
+                page.goto(CELESC_URL_LOGIN, wait_until="commit", timeout=60000)
+                page.wait_for_timeout(3000)
+                page.wait_for_load_state("networkidle", timeout=30000)
+                break
+            except Exception:
+                log.warning(f"Tentativa {tentativa + 1} de acessar site falhou, aguardando...")
+                page.wait_for_timeout(10000)
+        page.wait_for_timeout(3000)
+
+        campo_user = page.locator('input[type="text"]').first
+        campo_user.fill(CELESC_USER)
+        page.wait_for_timeout(500)
+
+        page.locator('button:has-text("Continuar")').first.click()
+        log.info("Email preenchido, aguardando tela de senha...")
+
+        # Passo 2: Aguardar pagina de login carregar
+        page.wait_for_timeout(5000)
+        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(3000)
+
+        # Fechar modal "Nova agencia" clicando em "Ja tenho o novo cadastro"
+        try:
+            botao_cadastro = page.locator('text=/tenho.*novo cadastro/i')
+            if botao_cadastro.count() > 0:
+                botao_cadastro.first.click(timeout=5000)
+                log.info("Modal de boas-vindas fechado.")
+                page.wait_for_timeout(3000)
+        except Exception:
+            pass
+
+        # Preencher senha e clicar Entrar
+        campo_senha = page.locator('input[type="password"]')
+        campo_senha.first.wait_for(state="visible", timeout=15000)
+        campo_senha.first.fill(CELESC_PASSWORD)
+        page.wait_for_timeout(500)
+
+        page.locator('button:has-text("Entrar")').first.click(timeout=10000)
+        log.info("Credenciais enviadas, aguardando redirecionamento...")
+
+        # Aguardar sair da pagina de login
+        page.wait_for_timeout(5000)
+        page.wait_for_load_state("networkidle", timeout=30000)
+
+        if "login" in page.url or "autenticacao" in page.url:
+            log.error("Login falhou - ainda na pagina de login")
+            return False
+
+        log.info(f"Login realizado com sucesso! URL: {page.url}")
+
+        # Navegar para pagina de selecao de protocolos
+        page.goto(CELESC_URL_SELECAO, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(3000)
+
+        return True
+
+    except PlaywrightTimeout:
+        log.error("Timeout durante login")
+        return False
+    except Exception as e:
+        log.error(f"Erro durante login: {e}")
+        return False
+
+
+def salvar_cookies(context):
+    """Salva cookies do contexto atual."""
+    try:
+        cookies = context.cookies()
+        with open(COOKIES_PATH, "w") as f:
+            json.dump(cookies, f, indent=2)
+        log.info("Cookies salvos com sucesso.")
+    except Exception as e:
+        log.warning(f"Nao foi possivel salvar cookies: {e}")
 
 
 def verificar_sessao(page) -> bool:
@@ -320,14 +407,6 @@ def executar_monitoramento():
     log.info(f"Iniciando monitoramento - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     log.info("=" * 60)
 
-    if not os.path.exists(COOKIES_PATH):
-        log.error(
-            f"Arquivo '{COOKIES_PATH}' nao encontrado! "
-            "Execute 'python salvar_login.py' no seu PC e copie o arquivo para o volume /app/data/"
-        )
-        enviar_webhook_sessao_expirada()
-        return
-
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=HEADLESS)
         context = browser.new_context(
@@ -335,33 +414,41 @@ def executar_monitoramento():
             locale="pt-BR"
         )
 
-        with open(COOKIES_PATH, "r") as f:
-            cookies = json.load(f)
-        context.add_cookies(cookies)
-        log.info("Cookies carregados com sucesso.")
+        # Tentar carregar cookies salvos
+        if os.path.exists(COOKIES_PATH):
+            with open(COOKIES_PATH, "r") as f:
+                cookies = json.load(f)
+            context.add_cookies(cookies)
+            log.info("Cookies carregados com sucesso.")
 
         page = context.new_page()
 
         try:
             dados_atuais = coletar_todos_protocolos(page)
-        except RuntimeError as e:
-            log.error(str(e))
-            enviar_webhook_sessao_expirada()
-            browser.close()
-            return
+        except RuntimeError:
+            # Sessao expirada - tentar login automatico
+            log.warning("Sessao expirada. Tentando login automatico...")
+            if fazer_login(page):
+                salvar_cookies(context)
+                try:
+                    dados_atuais = coletar_todos_protocolos(page)
+                except Exception as e:
+                    log.error(f"Erro apos re-login: {e}")
+                    enviar_webhook_sessao_expirada()
+                    browser.close()
+                    return
+            else:
+                log.error("Login automatico falhou!")
+                enviar_webhook_sessao_expirada()
+                browser.close()
+                return
         except Exception as e:
             log.error(f"Erro durante coleta: {e}")
             browser.close()
             return
 
         # Renovar cookies ANTES de fechar o browser
-        try:
-            cookies_atualizados = context.cookies()
-            with open(COOKIES_PATH, "w") as f:
-                json.dump(cookies_atualizados, f, indent=2)
-            log.info("Cookies renovados e salvos.")
-        except Exception as e:
-            log.warning(f"Nao foi possivel renovar cookies: {e}")
+        salvar_cookies(context)
 
         browser.close()
 
