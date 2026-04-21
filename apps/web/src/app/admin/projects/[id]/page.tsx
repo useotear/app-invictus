@@ -4,11 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Phase } from "@/lib/phases";
+import { ProjectDocuments } from "@/components/ProjectDocuments";
 
 interface ProjectDetail {
   id: string;
   address: string | null;
   system_size_kwp: number | null;
+  contract_value: number | null;
+  paid_amount: number | null;
+  payment_method: string | null;
   current_phase: number;
   client: { name: string; phone: string; email: string | null; access_token: string };
   phases: Phase[];
@@ -17,6 +21,11 @@ interface ProjectDetail {
 function fmt(d: string | null) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function fmtBRL(v: number | null | undefined) {
+  if (v === null || v === undefined) return "—";
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function dotColor(status: Phase["status"]) {
@@ -44,10 +53,27 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     reload();
   }
 
+  async function updatePayment() {
+    if (!p) return;
+    const amount = prompt("Valor pago acumulado (R$):", String(p.paid_amount ?? 0));
+    if (amount === null) return;
+    const method = prompt("Forma de pagamento (pix/boleto/cartao/transferencia/financiamento/outro):",
+      p.payment_method ?? "pix");
+    if (method === null) return;
+    await api.patch(`/projects/${params.id}`, {
+      paid_amount: Number(amount),
+      payment_method: method,
+    });
+    reload();
+  }
+
   if (!p) return <p className="text-slate-500">Carregando...</p>;
 
   const currentPhase = p.phases.find((ph) => ph.phase_number === p.current_phase);
   const nextPhaseNumber = p.current_phase + 1;
+  const pct = p.contract_value && p.contract_value > 0
+    ? Math.min(100, Math.round(((p.paid_amount ?? 0) / p.contract_value) * 100))
+    : 0;
 
   return (
     <div className="space-y-4 -mx-6 -my-6">
@@ -71,6 +97,35 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       </div>
 
       <div className="px-6 -mt-6 max-w-4xl mx-auto w-full space-y-5">
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="font-bold text-invictus">Pagamento</h3>
+            <button onClick={updatePayment} className="text-xs text-invictus hover:underline">editar</button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Contrato</p>
+              <p className="font-bold text-invictus-deep">{fmtBRL(p.contract_value)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Pago</p>
+              <p className="font-bold text-emerald-600">{fmtBRL(p.paid_amount)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase">Método</p>
+              <p className="font-bold text-invictus-deep capitalize">{p.payment_method ?? "—"}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-full bg-invictus-accent" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs font-semibold text-invictus">{pct}% pago</span>
+          </div>
+        </div>
+
+        <ProjectDocuments projectId={params.id} />
+
         {currentPhase && (
           <div className="bg-invictus-deep text-white rounded-2xl shadow-card p-5">
             <p className="text-[10px] font-semibold tracking-wider text-invictus-accent uppercase">

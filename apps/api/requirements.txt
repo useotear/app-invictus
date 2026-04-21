@@ -7,5 +7,6 @@ supabase==2.8.1
 pywebpush==2.0.0
 cryptography==43.0.1
 python-multipart==0.0.12
+
 PyJWT[crypto]==2.10.1
 slowapi==0.1.9

@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .config import settings
-from .routers import clients, projects, phases, push, maintenance
+from .routers import clients, projects, phases, push, maintenance, documents
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
@@ -41,6 +41,7 @@ async def security_headers(request: Request, call_next):
 
 app.include_router(clients.router)
 app.include_router(projects.router)
+app.include_router(documents.router)
 app.include_router(phases.router)
 app.include_router(push.router)
 app.include_router(maintenance.router)
