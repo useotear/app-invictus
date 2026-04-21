@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 interface Project {
   id: string;
@@ -35,12 +35,19 @@ function phaseTint(n: number) {
 export default function AdminHome() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
     api.get<Project[]>(`/projects`)
-      .then(setProjects).finally(() => setLoading(false));
+      .then((p) => { setProjects(p); setError(null); })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError) setError(`API ${e.status}: ${e.message}`);
+        else if (e instanceof TypeError) setError("Não consegui falar com a API (CORS ou rede).");
+        else setError(String(e));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -63,6 +70,19 @@ export default function AdminHome() {
           + Novo cliente / projeto
         </Link>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm space-y-2">
+          <p className="font-semibold">Erro ao carregar projetos</p>
+          <p className="text-xs font-mono break-all">{error}</p>
+          <ul className="text-xs list-disc pl-4">
+            <li>Confirme <code>SUPABASE_JWT_SECRET</code> setado no serviço api e reiniciado.</li>
+            <li>Confirme <code>ALLOWED_ORIGINS</code> inclui a URL do frontend.</li>
+            <li>Confirme que seu usuário existe na tabela <code>users</code> com <code>company_id</code>.</li>
+            <li>Teste: abra <code>{process.env.NEXT_PUBLIC_API_URL}/health</code> — deve voltar JSON.</li>
+          </ul>
+        </div>
+      )}
 
       <input
         value={query}
@@ -115,7 +135,7 @@ export default function AdminHome() {
             </Link>
           </li>
         ))}
-        {!loading && filtered.length === 0 && (
+        {!loading && !error && filtered.length === 0 && (
           <li className="p-8 text-center text-slate-500 bg-white rounded-2xl shadow-card">
             Nenhum projeto encontrado.
           </li>

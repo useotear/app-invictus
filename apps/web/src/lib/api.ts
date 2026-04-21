@@ -6,6 +6,14 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await authHeaders();
   const r = await fetch(`${API_URL}${path}`, {
@@ -17,12 +25,10 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     },
     cache: "no-store",
   });
-  if (r.status === 401) {
-    await supabase.auth.signOut();
-    if (typeof window !== "undefined") window.location.href = "/admin/login";
-    throw new Error("Sessão expirada");
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new ApiError(`${r.status} ${text || r.statusText}`.trim(), r.status);
   }
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
 
