@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str
     supabase_anon_key: str
+    supabase_jwt_secret: str = ""  # Settings → API → JWT Settings → JWT Secret (HS256)
 
     # WhatsApp (Evolution API por padrão; trocar base_url para Z-API se preferido)
     whatsapp_base_url: str = ""
@@ -18,6 +19,10 @@ class Settings(BaseSettings):
 
     # Portal
     portal_base_url: str = "http://localhost:3000"
+    allowed_origins: str = "http://localhost:3000"  # CSV
+
+    # Cron
+    cron_secret: str = ""
 
     class Config:
         env_file = ".env"

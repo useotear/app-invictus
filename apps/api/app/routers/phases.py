@@ -1,10 +1,15 @@
 from datetime import date
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from ..db import db
+from ..deps import AdminUser, require_admin
 from ..services.notifications import dispatch_phase_notifications
 
 router = APIRouter(prefix="/phases", tags=["phases"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 class PhaseUpdate(BaseModel):
@@ -12,22 +17,37 @@ class PhaseUpdate(BaseModel):
     scheduled_date: date | None = None
     completed_date: date | None = None
     notes: str | None = None
-    updated_by: str | None = None
 
 
 @router.patch("/{phase_id}")
-async def update_phase(phase_id: str, payload: PhaseUpdate, bg: BackgroundTasks):
+@limiter.limit("60/minute")
+async def update_phase(
+    request: Request,
+    phase_id: str,
+    payload: PhaseUpdate,
+    bg: BackgroundTasks,
+    user: AdminUser = Depends(require_admin),
+):
+    phase = db.table("project_phases").select("*,project:projects(company_id)") \
+        .eq("id", phase_id).single().execute().data
+    if not phase or phase["project"]["company_id"] != user.company_id:
+        raise HTTPException(404)
+
+    if payload.status and payload.status not in ("pending", "in_progress", "completed"):
+        raise HTTPException(400, "status inválido")
+
     update = {k: (v.isoformat() if hasattr(v, "isoformat") else v)
               for k, v in payload.model_dump(exclude_none=True).items()}
     if not update:
         raise HTTPException(400, "Nada para atualizar")
 
+    update["updated_by"] = user.user_id
+
     r = db.table("project_phases").update(update).eq("id", phase_id).execute()
     if not r.data:
         raise HTTPException(404)
-    phase = r.data[0]
+    updated = r.data[0]
 
-    # Se completou, avança current_phase do projeto e dispara notificações
     if payload.status == "completed":
         if payload.completed_date is None:
             db.table("project_phases").update({"completed_date": date.today().isoformat()}) \
@@ -37,4 +57,4 @@ async def update_phase(phase_id: str, payload: PhaseUpdate, bg: BackgroundTasks)
             .eq("id", phase["project_id"]).execute()
         bg.add_task(dispatch_phase_notifications, phase["project_id"], phase["phase_number"])
 
-    return phase
+    return updated

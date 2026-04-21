@@ -1,13 +1,15 @@
 """Cron job: dispara lembrete de manutenção 1 ano após instalação."""
 from datetime import date, timedelta
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
+
 from ..db import db
+from ..deps import require_cron_secret
 from ..services.notifications import dispatch_phase_notifications
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 
 
-@router.post("/maintenance-check")
+@router.post("/maintenance-check", dependencies=[Depends(require_cron_secret)])
 async def maintenance_check(bg: BackgroundTasks):
     """Roda diário. Projetos instalados há exatamente 1 ano → fase 12."""
     target = (date.today() - timedelta(days=365)).isoformat()

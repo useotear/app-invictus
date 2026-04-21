@@ -4,14 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
-const COMPANY_ID = "00000000-0000-0000-0000-000000000001";
-
 interface Project {
   id: string;
   current_phase: number;
   address: string | null;
   system_size_kwp: number | null;
-  status_label?: string | null;
   updated_at?: string | null;
   client: { name: string; phone: string };
   seller: { name: string } | null;
@@ -32,7 +29,6 @@ function phaseLabel(n: number) {
 function phaseTint(n: number) {
   if (n >= 11) return "bg-emerald-500";
   if (n >= 8) return "bg-invictus";
-  if (n >= 5) return "bg-invictus-accent text-invictus-deep";
   return "bg-invictus-accent text-invictus-deep";
 }
 
@@ -43,7 +39,7 @@ export default function AdminHome() {
   const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
-    api.get<Project[]>(`/projects?company_id=${COMPANY_ID}`)
+    api.get<Project[]>(`/projects`)
       .then(setProjects).finally(() => setLoading(false));
   }, []);
 
@@ -52,10 +48,6 @@ export default function AdminHome() {
     return projects.filter((p) => {
       if (q && !`${p.client.name} ${p.address ?? ""}`.toLowerCase().includes(q)) return false;
       if (filter === "in_progress" && (p.current_phase >= 11 || p.current_phase <= 0)) return false;
-      if (filter === "late") {
-        // simples: considera atrasado se status_label bater
-        if (!(p.status_label ?? "").toLowerCase().includes("atras")) return false;
-      }
       return true;
     });
   }, [projects, query, filter]);
