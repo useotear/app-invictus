@@ -1,0 +1,134 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { api } from "@/lib/api";
+
+const COMPANY_ID = "00000000-0000-0000-0000-000000000001";
+
+interface Project {
+  id: string;
+  current_phase: number;
+  address: string | null;
+  system_size_kwp: number | null;
+  status_label?: string | null;
+  updated_at?: string | null;
+  client: { name: string; phone: string };
+  seller: { name: string } | null;
+}
+
+type Filter = "all" | "in_progress" | "late";
+
+function phaseLabel(n: number) {
+  const map: Record<number, string> = {
+    1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
+    4: "Kit entregue", 5: "Entrada na Celesc", 6: "Projeto em análise",
+    7: "Projeto aprovado", 8: "Instalação agendada", 9: "Instalação concluída",
+    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção agendada",
+  };
+  return map[n] ?? "—";
+}
+
+function phaseTint(n: number) {
+  if (n >= 11) return "bg-emerald-500";
+  if (n >= 8) return "bg-invictus";
+  if (n >= 5) return "bg-invictus-accent text-invictus-deep";
+  return "bg-invictus-accent text-invictus-deep";
+}
+
+export default function AdminHome() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+
+  useEffect(() => {
+    api.get<Project[]>(`/projects?company_id=${COMPANY_ID}`)
+      .then(setProjects).finally(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return projects.filter((p) => {
+      if (q && !`${p.client.name} ${p.address ?? ""}`.toLowerCase().includes(q)) return false;
+      if (filter === "in_progress" && (p.current_phase >= 11 || p.current_phase <= 0)) return false;
+      if (filter === "late") {
+        // simples: considera atrasado se status_label bater
+        if (!(p.status_label ?? "").toLowerCase().includes("atras")) return false;
+      }
+      return true;
+    });
+  }, [projects, query, filter]);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-[10px] font-semibold tracking-[0.2em] text-invictus uppercase">Projetos</p>
+          <h1 className="text-3xl font-bold text-invictus-deep">Todos os projetos</h1>
+        </div>
+        <Link href="/admin/clients" className="px-4 py-2 bg-invictus text-white rounded-lg text-sm font-medium hover:bg-invictus-dark transition">
+          + Novo cliente / projeto
+        </Link>
+      </div>
+
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar cliente, endereço..."
+        className="w-full px-4 py-3 bg-white rounded-xl shadow-card placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-invictus"
+      />
+
+      <div className="flex gap-2 flex-wrap">
+        {([
+          ["all", `Todos (${projects.length})`],
+          ["in_progress", "Em andamento"],
+          ["late", "Atrasados"],
+        ] as [Filter, string][]).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setFilter(k)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition ${
+              filter === k
+                ? "bg-invictus text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <p className="text-slate-500">Carregando...</p>}
+
+      <ul className="space-y-3">
+        {filtered.map((p) => (
+          <li key={p.id}>
+            <Link href={`/admin/projects/${p.id}`} className="flex items-center gap-4 bg-white rounded-2xl shadow-card p-4 hover:shadow-lg transition">
+              <div className={`shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white font-bold ${phaseTint(p.current_phase)}`}>
+                <span className="text-xl leading-none">{p.current_phase}</span>
+                <span className="text-[9px] opacity-80">/12</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-invictus-deep truncate">{p.client.name}</p>
+                <p className="text-xs text-slate-500 truncate">
+                  {p.system_size_kwp ? `${p.system_size_kwp} kWp` : "—"}
+                  {p.address ? ` • ${p.address}` : ""}
+                </p>
+                <span className="inline-block mt-1 text-[10px] font-semibold text-invictus-accent bg-invictus-accent/10 px-2 py-0.5 rounded">
+                  {phaseLabel(p.current_phase)}
+                </span>
+              </div>
+              <span className="text-slate-300 text-lg">›</span>
+            </Link>
+          </li>
+        ))}
+        {!loading && filtered.length === 0 && (
+          <li className="p-8 text-center text-slate-500 bg-white rounded-2xl shadow-card">
+            Nenhum projeto encontrado.
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
