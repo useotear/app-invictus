@@ -9,6 +9,7 @@ const securityHeaders = [
 
 module.exports = {
   reactStrictMode: true,
+  output: "standalone",
   async headers() {
     return [
       {
