@@ -9,6 +9,7 @@ venv/
 .next/
 dist/
 build/
+*.tsbuildinfo
 
 # env
 .env
