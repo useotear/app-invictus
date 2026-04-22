@@ -106,7 +106,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
         className="relative overflow-hidden text-white px-6 pt-6 pb-28"
         style={{
           backgroundImage:
-            "linear-gradient(135deg, rgba(30,43,214,0.92), rgba(11,19,64,0.88)), url('/hero-solar.jpg')",
+            "linear-gradient(135deg, rgba(30,43,214,0.75), rgba(11,19,64,0.72)), url('/hero-solar.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
