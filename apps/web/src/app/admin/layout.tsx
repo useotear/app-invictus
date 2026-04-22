@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthGuard, signOut } from "./AuthGuard";
+import { DialogProvider } from "@/components/DialogProvider";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -10,6 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AuthGuard>
+      <DialogProvider>
       <div className="min-h-screen flex flex-col bg-invictus-bg">
         {!isLogin && (
           <header className="bg-invictus text-white">
@@ -37,6 +39,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </main>
       </div>
+      </DialogProvider>
     </AuthGuard>
   );
 }

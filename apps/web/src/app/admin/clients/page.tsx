@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useDialog } from "@/components/DialogProvider";
 
 interface Client {
   id: string;
@@ -41,6 +42,7 @@ export default function ClientsPage() {
   const [projectForm, setProjectForm] = useState<Record<string, ProjectForm>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const dialog = useDialog();
 
   const reload = () => api.get<Client[]>(`/clients`).then(setClients).catch(() => {});
 
@@ -77,10 +79,14 @@ export default function ClientsPage() {
         paid_amount: pf.paid ? Number(pf.paid) : 0,
         payment_method: pf.method || null,
       });
-      alert("Projeto criado!");
+      await dialog.alert({ title: "Projeto criado", message: "Pronto! O projeto foi adicionado." });
       setProjectForm({ ...projectForm, [clientId]: EMPTY_PROJECT });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Erro ao criar projeto");
+      await dialog.alert({
+        title: "Erro ao criar projeto",
+        message: e instanceof Error ? e.message : "Tente novamente",
+        tone: "error",
+      });
     }
   }
 
@@ -88,19 +94,32 @@ export default function ClientsPage() {
     try {
       const { link } = await api.get<{ link: string }>(`/clients/${clientId}/access-link`);
       await navigator.clipboard.writeText(link);
-      alert("Link copiado!");
+      await dialog.alert({ title: "Link copiado!", message: link });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Erro ao buscar link");
+      await dialog.alert({
+        title: "Erro",
+        message: e instanceof Error ? e.message : "Não consegui buscar o link",
+        tone: "error",
+      });
     }
   }
 
   async function sendWhatsappLink(clientId: string) {
-    if (!confirm("Enviar link do portal por WhatsApp para este cliente?")) return;
+    const ok = await dialog.confirm({
+      title: "Enviar link por WhatsApp",
+      message: "O cliente receberá o link do portal via WhatsApp agora.",
+      confirmText: "Enviar",
+    });
+    if (!ok) return;
     try {
       await api.post(`/clients/${clientId}/send-link`, {});
-      alert("Link enviado!");
+      await dialog.alert({ title: "Enviado!", message: "Mensagem despachada ao WhatsApp." });
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Erro ao enviar");
+      await dialog.alert({
+        title: "Erro",
+        message: e instanceof Error ? e.message : "Falha ao enviar",
+        tone: "error",
+      });
     }
   }
 
@@ -180,9 +199,6 @@ export default function ClientsPage() {
                     <button onClick={() => createProject(c.id)} className="w-full bg-invictus-accent text-invictus-deep font-semibold py-2 rounded hover:brightness-110 transition">
                       Criar projeto
                     </button>
-                    <p className="text-[11px] text-slate-500">
-                      Após criar o projeto, use a página do projeto para anexar contrato, comprovantes e fotos.
-                    </p>
                   </div>
                 </div>
               </details>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Phase } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
+import { useDialog } from "@/components/DialogProvider";
 
 interface ProjectDetail {
   id: string;
@@ -36,18 +37,30 @@ function dotColor(status: Phase["status"]) {
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const [p, setP] = useState<ProjectDetail | null>(null);
+  const dialog = useDialog();
 
   const reload = () => api.get<ProjectDetail>(`/projects/${params.id}`).then(setP);
   useEffect(() => { reload(); }, [params.id]);
 
   async function complete(phase: Phase) {
-    if (!confirm(`Marcar "${phase.phase_name}" como concluída? Isso disparará notificações.`)) return;
+    const ok = await dialog.confirm({
+      title: "Concluir fase",
+      message: `Marcar "${phase.phase_name}" como concluída? O cliente vai receber WhatsApp e push.`,
+      confirmText: "Concluir",
+    });
+    if (!ok) return;
     await api.patch(`/phases/${phase.id}`, { status: "completed" });
     reload();
   }
 
   async function schedule(phase: Phase) {
-    const d = prompt("Data prevista (YYYY-MM-DD):", phase.scheduled_date ?? "");
+    const d = await dialog.prompt({
+      title: `Agendar: ${phase.phase_name}`,
+      message: "Escolha a data prevista.",
+      type: "date",
+      defaultValue: phase.scheduled_date ?? "",
+      confirmText: "Agendar",
+    });
     if (!d) return;
     await api.patch(`/phases/${phase.id}`, { scheduled_date: d, status: "in_progress" });
     reload();
@@ -55,10 +68,20 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
   async function updatePayment() {
     if (!p) return;
-    const amount = prompt("Valor pago acumulado (R$):", String(p.paid_amount ?? 0));
+    const amount = await dialog.prompt({
+      title: "Atualizar pagamento",
+      message: "Valor pago acumulado (R$):",
+      type: "number",
+      defaultValue: String(p.paid_amount ?? 0),
+      confirmText: "Próximo",
+    });
     if (amount === null) return;
-    const method = prompt("Forma de pagamento (pix/boleto/cartao/transferencia/financiamento/outro):",
-      p.payment_method ?? "pix");
+    const method = await dialog.prompt({
+      title: "Forma de pagamento",
+      message: "pix / boleto / cartao / transferencia / financiamento / outro",
+      defaultValue: p.payment_method ?? "pix",
+      confirmText: "Salvar",
+    });
     if (method === null) return;
     await api.patch(`/projects/${params.id}`, {
       paid_amount: Number(amount),

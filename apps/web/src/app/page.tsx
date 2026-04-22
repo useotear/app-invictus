@@ -13,10 +13,13 @@ export default function Home() {
         <span className="w-2 h-2 rounded-full bg-invictus-accent" />
         <span className="w-2 h-2 rounded-full bg-white/40" />
       </div>
-      <Link href="/admin" className="text-xs text-white/60 hover:text-white underline">
-        Painel da equipe
+      <Link
+        href="/admin"
+        className="px-8 py-3 bg-invictus-accent text-invictus-deep font-bold rounded-xl shadow-lg hover:brightness-110 transition"
+      >
+        Acessar painel
       </Link>
-      <p className="text-xs text-white/50 mt-6 text-center max-w-xs">
+      <p className="text-xs text-white/50 mt-8 text-center max-w-xs">
         Cliente: acesse o link recebido por WhatsApp para ver seu projeto.
       </p>
     </main>
