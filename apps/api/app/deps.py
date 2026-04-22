@@ -1,5 +1,6 @@
 from typing import Annotated
 import jwt
+from jwt import PyJWKClient
 from fastapi import Depends, Header, HTTPException, Request
 from .config import settings
 from .db import db
@@ -13,24 +14,49 @@ class AdminUser:
         self.role = role
 
 
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(url, cache_keys=True, lifespan=3600)
+    return _jwks_client
+
+
 def _decode_supabase_jwt(token: str) -> dict:
-    if not settings.supabase_jwt_secret:
-        raise HTTPException(500, "SUPABASE_JWT_SECRET não configurado")
+    # Modo HS256 (legacy JWT Secret)
+    if settings.supabase_jwt_secret:
+        try:
+            return jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        except jwt.InvalidTokenError:
+            # Se o projeto migrou para JWKS, cai para o decode por chave pública
+            pass
+
+    # Modo RS256/ES256 via JWKS (asymmetric signing keys)
     try:
+        key = _get_jwks_client().get_signing_key_from_jwt(token).key
         return jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            key,
+            algorithms=["RS256", "ES256"],
             audience="authenticated",
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(401, "Token expirado")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Token inválido")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(401, f"Token inválido: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"Falha ao buscar JWKS: {e}")
 
 
 def require_admin(authorization: Annotated[str | None, Header()] = None) -> AdminUser:
-    """Valida JWT do Supabase Auth e busca company_id/role em users."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Authorization header ausente")
     token = authorization.split(" ", 1)[1].strip()
@@ -39,10 +65,15 @@ def require_admin(authorization: Annotated[str | None, Header()] = None) -> Admi
     if not user_id:
         raise HTTPException(401, "Token sem sub")
 
-    row = db.table("users").select("company_id,role,email,name") \
-        .eq("id", user_id).single().execute().data
-    if not row:
-        raise HTTPException(403, "Usuário não vinculado a empresa")
+    rows = db.table("users").select("company_id,role,email,name") \
+        .eq("id", user_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(
+            403,
+            f"Usuário {user_id} não está vinculado a uma empresa (tabela users). "
+            "Rode o INSERT para criar o vínculo.",
+        )
+    row = rows[0]
     return AdminUser(
         user_id=user_id,
         email=row["email"],
@@ -59,7 +90,6 @@ def require_cron_secret(x_cron_secret: Annotated[str | None, Header()] = None) -
 
 
 def client_ip(request: Request) -> str:
-    """IP real para rate limiting, respeitando proxy reverso."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
