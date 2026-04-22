@@ -2,13 +2,16 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..config import settings
 from ..db import db
 
 router = APIRouter(prefix="/celesc", tags=["celesc"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def require_celesc_secret(x_celesc_secret: Annotated[str | None, Header()] = None) -> None:
@@ -20,23 +23,23 @@ def require_celesc_secret(x_celesc_secret: Annotated[str | None, Header()] = Non
 
 
 class CelescClient(BaseModel):
-    name: str | None = None
-    cpf_cnpj: str | None = None
-    phone_mobile: str | None = None
-    phone_fixed: str | None = None
-    email: str | None = None
+    name: str | None = Field(None, max_length=300)
+    cpf_cnpj: str | None = Field(None, max_length=20)
+    phone_mobile: str | None = Field(None, max_length=20)
+    phone_fixed: str | None = Field(None, max_length=20)
+    email: str | None = Field(None, max_length=255)
 
 
 class CelescProtocol(BaseModel):
-    protocol: str
-    address: str | None = None
+    protocol: str = Field(..., pattern=r"^80\d{8}$")
+    address: str | None = Field(None, max_length=500)
     client: CelescClient | None = None
-    invictus_phase: int  # 5, 6, 7 (ou 11 se execução)
+    invictus_phase: int = Field(..., ge=1, le=12)
 
 
 class ImportPayload(BaseModel):
     company_id: str
-    items: list[CelescProtocol]
+    items: list[CelescProtocol] = Field(..., max_length=500)
 
 
 def _norm_phone(p: str | None) -> str | None:
@@ -56,27 +59,26 @@ def _norm_doc(d: str | None) -> str | None:
     return "".join(c for c in d if c.isdigit()) or None
 
 
-def _advance_project_phases(project_id: str, target_phase: int) -> None:
+def _advance_project_phases(project_id: str, target_phase: int, actor_user_id: str | None = None) -> None:
     """Marca fases 1..target_phase-1 como concluídas e a target_phase como in_progress,
     sem disparar notificações."""
     today = date.today().isoformat()
-    db.table("project_phases") \
-        .update({"status": "completed", "completed_date": today}) \
-        .eq("project_id", project_id) \
-        .lt("phase_number", target_phase) \
-        .execute()
-    db.table("project_phases") \
-        .update({"status": "in_progress"}) \
-        .eq("project_id", project_id) \
-        .eq("phase_number", target_phase) \
-        .execute()
-    db.table("projects") \
-        .update({"current_phase": target_phase}) \
+    prev_update = {"status": "completed", "completed_date": today}
+    current_update = {"status": "in_progress"}
+    if actor_user_id:
+        prev_update["updated_by"] = actor_user_id
+        current_update["updated_by"] = actor_user_id
+    db.table("project_phases").update(prev_update) \
+        .eq("project_id", project_id).lt("phase_number", target_phase).execute()
+    db.table("project_phases").update(current_update) \
+        .eq("project_id", project_id).eq("phase_number", target_phase).execute()
+    db.table("projects").update({"current_phase": target_phase}) \
         .eq("id", project_id).execute()
 
 
 @router.post("/import", dependencies=[Depends(require_celesc_secret)])
-def import_snapshot(payload: ImportPayload):
+@limiter.limit("10/minute")
+def import_snapshot(request: Request, payload: ImportPayload):
     """Cria clientes e projetos no Invictus a partir de snapshot da Celesc.
     Idempotente: pula protocolos já existentes e reusa clientes pelo CPF/CNPJ."""
     import secrets as _secrets
@@ -146,16 +148,21 @@ def import_snapshot(payload: ImportPayload):
 
 
 class CelescSyncPhase(BaseModel):
-    protocol: str
-    invictus_phase: int
+    protocol: str = Field(..., pattern=r"^80\d{8}$")
+    invictus_phase: int = Field(..., ge=1, le=12)
+
+
+class SyncPayload(BaseModel):
+    items: list[CelescSyncPhase] = Field(..., max_length=500)
 
 
 @router.post("/sync-phases", dependencies=[Depends(require_celesc_secret)])
-def sync_phases(items: list[CelescSyncPhase]):
+@limiter.limit("10/minute")
+def sync_phases(request: Request, payload: SyncPayload):
     """Atualiza fase de projetos que já têm celesc_protocol (uso diário/cron)."""
     updated = 0
     not_found: list[str] = []
-    for it in items:
+    for it in payload.items:
         p = db.table("projects").select("id,current_phase") \
             .eq("celesc_protocol", it.protocol).limit(1).execute().data or []
         if not p:

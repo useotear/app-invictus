@@ -68,11 +68,10 @@ def require_admin(authorization: Annotated[str | None, Header()] = None) -> Admi
     rows = db.table("users").select("company_id,role,email,name") \
         .eq("id", user_id).limit(1).execute().data
     if not rows:
-        raise HTTPException(
-            403,
-            f"Usuário {user_id} não está vinculado a uma empresa (tabela users). "
-            "Rode o INSERT para criar o vínculo.",
-        )
+        # Não vazar o user_id na resposta; log interno cuida do debug.
+        import logging
+        logging.getLogger("auth").warning("Usuário autenticado sem vínculo em users: %s", user_id)
+        raise HTTPException(403, "Usuário não autorizado")
     row = rows[0]
     return AdminUser(
         user_id=user_id,

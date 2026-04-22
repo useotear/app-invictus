@@ -6,13 +6,38 @@ from ..deps import AdminUser, require_admin
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
 BUCKET = "project-documents"
-ALLOWED_MIME = {
-    "application/pdf",
-    "image/png", "image/jpeg", "image/webp",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword",
+
+# Magic bytes (primeiros bytes do arquivo) por tipo declarado.
+# Fonte: https://www.garykessler.net/library/file_sigs.html
+MIME_MAGIC: dict[str, list[bytes]] = {
+    "application/pdf": [b"%PDF-"],
+    "image/png": [b"\x89PNG\r\n\x1a\n"],
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/webp": [b"RIFF"],  # + WEBP em offset 8, checado abaixo
+    "application/msword": [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"],  # OLE (DOC legado)
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [b"PK\x03\x04"],  # ZIP (DOCX)
 }
 MAX_BYTES = 15 * 1024 * 1024  # 15 MB
+
+
+def _validate_magic(content: bytes, declared_mime: str) -> bool:
+    sigs = MIME_MAGIC.get(declared_mime)
+    if not sigs:
+        return False
+    if not any(content.startswith(s) for s in sigs):
+        return False
+    # WebP precisa checar "WEBP" no offset 8
+    if declared_mime == "image/webp" and (len(content) < 12 or content[8:12] != b"WEBP"):
+        return False
+    return True
+
+
+def _safe_filename(raw: str | None) -> str:
+    name = raw or "arquivo"
+    # Remove path separators e caracteres de controle; trunca.
+    cleaned = "".join(c for c in name if c.isprintable() and c not in "/\\\x00")
+    cleaned = cleaned.replace("..", "_")
+    return (cleaned.strip() or "arquivo")[:120]
 
 
 def _assert_project_in_company(project_id: str, company_id: str) -> None:
@@ -25,19 +50,23 @@ def _assert_project_in_company(project_id: str, company_id: str) -> None:
 async def upload_document(
     project_id: str,
     file: UploadFile = File(...),
-    label: str | None = Form(None),
+    label: str | None = Form(None, max_length=200),
     user: AdminUser = Depends(require_admin),
 ):
     _assert_project_in_company(project_id, user.company_id)
 
-    if file.content_type not in ALLOWED_MIME:
+    if file.content_type not in MIME_MAGIC:
         raise HTTPException(400, f"Tipo não permitido: {file.content_type}")
 
-    content = await file.read()
+    # Lê com limite para evitar OOM em arquivos enormes
+    content = await file.read(MAX_BYTES + 1)
     if len(content) > MAX_BYTES:
         raise HTTPException(413, f"Arquivo maior que {MAX_BYTES // (1024*1024)}MB")
 
-    safe_name = (file.filename or "arquivo").replace("/", "_").replace("\\", "_")
+    if not _validate_magic(content, file.content_type):
+        raise HTTPException(400, "Conteúdo do arquivo não corresponde ao tipo declarado")
+
+    safe_name = _safe_filename(file.filename)
     path = f"{project_id}/{safe_name}"
 
     storage = db.storage.from_(BUCKET)
@@ -49,7 +78,7 @@ async def upload_document(
 
     row = db.table("project_documents").insert({
         "project_id": project_id,
-        "name": label or safe_name,
+        "name": _safe_filename(label) if label else safe_name,
         "file_url": path,
         "uploaded_by": user.user_id,
     }).execute().data[0]
