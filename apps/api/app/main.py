@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .config import settings
-from .routers import auth, clients, projects, phases, push, maintenance, documents
+from .routers import auth, clients, projects, phases, push, maintenance, documents, celesc
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
@@ -46,6 +46,7 @@ app.include_router(documents.router)
 app.include_router(phases.router)
 app.include_router(push.router)
 app.include_router(maintenance.router)
+app.include_router(celesc.router)
 
 
 @app.get("/health")

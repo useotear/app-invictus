@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Cron
     cron_secret: str = ""
+    celesc_secret: str = ""
 
     class Config:
         env_file = str(ENV_FILE)
