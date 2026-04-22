@@ -1,4 +1,5 @@
 -- 0003: campos de pagamento em projects + bucket de storage para documentos
+-- Idempotente: pode ser rodada múltiplas vezes com segurança.
 
 alter table projects
   add column if not exists paid_amount numeric(12,2) default 0 not null,
@@ -6,13 +7,15 @@ alter table projects
     check (payment_method in ('pix','boleto','cartao','transferencia','financiamento','outro'));
 
 -- Bucket privado para documentos dos projetos.
--- Observação: criação do bucket é idempotente. Se preferir, rode manualmente em
--- Storage → Buckets → New bucket ('project-documents', private).
 insert into storage.buckets (id, name, public)
 values ('project-documents', 'project-documents', false)
 on conflict (id) do nothing;
 
--- Policies: somente equipe da empresa dona do projeto pode ler/escrever.
+-- Policies: recria sem erro se já existirem.
+drop policy if exists "team reads project docs"   on storage.objects;
+drop policy if exists "team writes project docs"  on storage.objects;
+drop policy if exists "team deletes project docs" on storage.objects;
+
 create policy "team reads project docs"
   on storage.objects for select
   using (
