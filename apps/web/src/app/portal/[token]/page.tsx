@@ -75,9 +75,11 @@ export default async function Portal({ params }: { params: { token: string } }) 
   const project = projects[0];
   const pct = Math.round((project.current_phase / 12) * 100);
   const kwp = project.system_size_kwp ?? 0;
-  const geracaoMWh = Math.round(kwp * 1.25); // ~1,25 MWh/ano por kWp em SC
-  const co2Ton = Math.round(geracaoMWh * 0.76); // fator de emissão BR
-  const economiaBRL = Math.round(geracaoMWh * 560 * 1000); // R$/MWh médio residencial
+  // Referências: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh,
+  // tarifa residencial média SC ~R$ 0,85/kWh.
+  const geracaoMWh = Math.round(kwp * 1.4);
+  const co2Ton = +(geracaoMWh * 0.076).toFixed(1);
+  const economiaBRL = Math.round(geracaoMWh * 1000 * 0.85);
   const nextPhase = project.phases.find((p) => p.status !== "completed");
   const currentLabel = phaseLabel(project.current_phase);
 
@@ -245,7 +247,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
           <div className="grid grid-cols-4 gap-2">
             <Stat icon="⚡" value={`${kwp || "—"}`} unit="kWp" label="Potência instalada" />
             <Stat icon="☀️" value={geracaoMWh.toLocaleString("pt-BR")} unit="MWh" label="Geração estimada/ano" />
-            <Stat icon="🌱" value={co2Ton.toLocaleString("pt-BR")} unit="t" label="CO₂ evitado/ano" />
+            <Stat icon="🌱" value={co2Ton.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} unit="t" label="CO₂ evitado/ano" />
             <Stat icon="💰" value={fmtBRLmil(economiaBRL).replace("R$ ", "R$")} unit="" label="Economia anual" />
           </div>
         </div>
