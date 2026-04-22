@@ -106,9 +106,12 @@ def by_client_token(request: Request, token: str):
     if not client:
         raise HTTPException(404, "Token inválido")
     projects = db.table("projects").select(
-        "id,current_phase,address,system_size_kwp,created_at,installed_at,"
-        "phases:project_phases(*)"
+        "id,current_phase,address,system_size_kwp,contract_value,paid_amount,"
+        "payment_method,created_at,installed_at,"
+        "phases:project_phases(*),"
+        "documents:project_documents(id,name,created_at)"
     ).eq("client_id", client["id"]).execute().data or []
     for p in projects:
         p["phases"] = sorted(p.get("phases") or [], key=lambda x: x["phase_number"])
+        p["documents_count"] = len(p.get("documents") or [])
     return {"client": client, "projects": projects}
