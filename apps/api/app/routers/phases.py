@@ -5,7 +5,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..db import db
-from ..deps import AdminUser, require_admin
+from ..deps import AdminUser, log_audit, require_admin
 from ..services.notifications import dispatch_phase_notifications
 
 router = APIRouter(prefix="/phases", tags=["phases"])
@@ -56,5 +56,15 @@ async def update_phase(
         db.table("projects").update({"current_phase": next_phase}) \
             .eq("id", phase["project_id"]).execute()
         bg.add_task(dispatch_phase_notifications, phase["project_id"], phase["phase_number"])
+
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="phase.update", entity_type="project_phase", entity_id=phase_id,
+        metadata={
+            "project_id": phase["project_id"],
+            "phase_number": phase["phase_number"],
+            **{k: v for k, v in update.items() if k != "updated_by"},
+        },
+    )
 
     return updated

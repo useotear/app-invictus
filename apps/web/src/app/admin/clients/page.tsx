@@ -9,6 +9,7 @@ interface Client {
   name: string;
   phone: string;
   email: string | null;
+  access_token_expires_at: string | null;
 }
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -104,6 +105,37 @@ export default function ClientsPage() {
     }
   }
 
+  async function rotateLink(clientId: string) {
+    const ok = await dialog.confirm({
+      title: "Rotacionar link do portal",
+      message: "O link atual vai parar de funcionar e um novo será gerado (válido por 90 dias).",
+      confirmText: "Rotacionar",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const { link } = await api.post<{ link: string }>(`/clients/${clientId}/rotate-link`, {});
+      await navigator.clipboard.writeText(link);
+      await dialog.alert({ title: "Novo link gerado e copiado!", message: link });
+      reload();
+    } catch (e: unknown) {
+      await dialog.alert({
+        title: "Erro",
+        message: e instanceof Error ? e.message : "Falha ao rotacionar",
+        tone: "error",
+      });
+    }
+  }
+
+  function expiryLabel(iso: string | null): { text: string; tone: "ok" | "warn" | "expired" } {
+    if (!iso) return { text: "sem validade", tone: "ok" };
+    const d = new Date(iso);
+    const ms = d.getTime() - Date.now();
+    if (ms < 0) return { text: "expirado", tone: "expired" };
+    const days = Math.round(ms / 86_400_000);
+    return { text: `expira em ${days}d`, tone: days < 14 ? "warn" : "ok" };
+  }
+
   async function sendWhatsappLink(clientId: string) {
     const ok = await dialog.confirm({
       title: "Enviar link por WhatsApp",
@@ -163,13 +195,23 @@ export default function ClientsPage() {
                   <span className="text-sm text-slate-500">{c.phone}</span>
                 </summary>
                 <div className="px-4 pb-4 border-t pt-3 space-y-4">
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap items-center">
                     <button onClick={() => copyPortalLink(c.id)} className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded hover:bg-invictus hover:text-white transition">
-                      📋 Copiar link do portal
+                      📋 Copiar link
                     </button>
                     <button onClick={() => sendWhatsappLink(c.id)} className="text-xs px-3 py-1.5 border border-emerald-600 text-emerald-700 rounded hover:bg-emerald-600 hover:text-white transition">
                       📱 Enviar por WhatsApp
                     </button>
+                    <button onClick={() => rotateLink(c.id)} className="text-xs px-3 py-1.5 border border-red-400 text-red-600 rounded hover:bg-red-500 hover:text-white transition">
+                      🔄 Rotacionar
+                    </button>
+                    {(() => {
+                      const e = expiryLabel(c.access_token_expires_at);
+                      const tone = e.tone === "expired" ? "bg-red-100 text-red-700" :
+                                   e.tone === "warn" ? "bg-amber-100 text-amber-800" :
+                                   "bg-slate-100 text-slate-600";
+                      return <span className={`text-[10px] px-2 py-1 rounded font-semibold ${tone}`}>{e.text}</span>;
+                    })()}
                   </div>
 
                   <div className="space-y-2">

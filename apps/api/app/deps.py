@@ -93,3 +93,30 @@ def client_ip(request: Request) -> str:
     if fwd:
         return fwd.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def log_audit(
+    *,
+    company_id: str | None,
+    actor: AdminUser | None,
+    action: str,
+    entity_type: str,
+    entity_id: str | None = None,
+    metadata: dict | None = None,
+    ip: str | None = None,
+) -> None:
+    """Grava entrada em audit_log. Nunca levanta — falha silenciosa com log."""
+    import logging
+    try:
+        db.table("audit_log").insert({
+            "company_id": company_id,
+            "actor_id": actor.user_id if actor else None,
+            "actor_email": actor.email if actor else None,
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "metadata": metadata or {},
+            "ip": ip,
+        }).execute()
+    except Exception as e:
+        logging.getLogger("audit").warning("Falha ao gravar audit_log (%s): %s", action, e)

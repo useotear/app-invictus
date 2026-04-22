@@ -101,10 +101,15 @@ def update_project(
 @router.get("/by-client-token/{token}")
 @limiter.limit("60/minute")
 def by_client_token(request: Request, token: str):
-    client = db.table("clients").select("id,name,email,phone") \
+    from datetime import datetime, timezone
+    client = db.table("clients").select("id,name,email,phone,access_token_expires_at") \
         .eq("access_token", token).single().execute().data
     if not client:
         raise HTTPException(404, "Token inválido")
+    exp = client.get("access_token_expires_at")
+    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(410, "Link expirado — peça à equipe um novo link.")
+    client.pop("access_token_expires_at", None)
     projects = db.table("projects").select(
         "id,current_phase,address,system_size_kwp,contract_value,paid_amount,"
         "payment_method,created_at,installed_at,"

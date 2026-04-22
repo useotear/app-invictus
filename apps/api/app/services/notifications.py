@@ -45,8 +45,16 @@ async def dispatch_phase_notifications(project_id: str, phase_number: int) -> No
                           data=str(scheduled), link=portal_link)
 
         for rtype, phone, _name in recipients:
-            log = {"project_id": project_id, "channel": tpl["channel"],
-                   "recipient_type": rtype, "recipient": phone, "message": message}
+            # Pseudonimiza: mantém só os últimos 4 dígitos do telefone no log
+            # e NÃO grava a mensagem renderizada (contém nome, link com token).
+            masked_phone = f"****{phone[-4:]}" if phone and len(phone) >= 4 else "****"
+            log = {
+                "project_id": project_id,
+                "channel": tpl["channel"],
+                "recipient_type": rtype,
+                "recipient": masked_phone,
+                "message": None,
+            }
             try:
                 if tpl["channel"] == "whatsapp":
                     await send_whatsapp(phone, message)

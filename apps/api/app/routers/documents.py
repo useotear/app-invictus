@@ -1,7 +1,7 @@
 """Upload/list/delete de documentos de projeto via Supabase Storage."""
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from ..db import db
-from ..deps import AdminUser, require_admin
+from ..deps import AdminUser, log_audit, require_admin
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
@@ -83,6 +83,11 @@ async def upload_document(
         "uploaded_by": user.user_id,
     }).execute().data[0]
 
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="doc.upload", entity_type="project_document", entity_id=row["id"],
+        metadata={"project_id": project_id, "mime": file.content_type, "size": len(content)},
+    )
     return row
 
 
@@ -113,4 +118,9 @@ def delete_document(doc_id: str, project_id: str, user: AdminUser = Depends(requ
         raise HTTPException(404)
     db.storage.from_(BUCKET).remove([doc["file_url"]])
     db.table("project_documents").delete().eq("id", doc_id).execute()
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="doc.delete", entity_type="project_document", entity_id=doc_id,
+        metadata={"project_id": project_id, "name": doc["name"]},
+    )
     return {"ok": True}

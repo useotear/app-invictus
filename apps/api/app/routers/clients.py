@@ -1,4 +1,5 @@
 import secrets
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -6,11 +7,13 @@ from slowapi.util import get_remote_address
 
 from ..db import db
 from ..config import settings
-from ..deps import AdminUser, require_admin
+from ..deps import AdminUser, log_audit, require_admin
 from ..services.whatsapp import send_whatsapp
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 limiter = Limiter(key_func=get_remote_address)
+
+TOKEN_TTL_DAYS = 90
 
 
 class ClientIn(BaseModel):
@@ -20,6 +23,12 @@ class ClientIn(BaseModel):
     cpf_cnpj: str | None = Field(None, pattern=r"^\d{11}$|^\d{14}$")
 
 
+def _new_token_with_expiry() -> tuple[str, str]:
+    token = secrets.token_urlsafe(24)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=TOKEN_TTL_DAYS)).isoformat()
+    return token, expires_at
+
+
 @router.post("")
 @limiter.limit("20/minute")
 def create_client(
@@ -27,10 +36,18 @@ def create_client(
     payload: ClientIn,
     user: AdminUser = Depends(require_admin),
 ):
-    token = secrets.token_urlsafe(24)
-    data = payload.model_dump() | {"access_token": token, "company_id": user.company_id}
+    token, expires_at = _new_token_with_expiry()
+    data = payload.model_dump() | {
+        "access_token": token,
+        "access_token_expires_at": expires_at,
+        "company_id": user.company_id,
+    }
     r = db.table("clients").insert(data).execute()
     client = r.data[0]
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.create", entity_type="client", entity_id=client["id"],
+    )
     client.pop("access_token", None)
     return client
 
@@ -38,30 +55,56 @@ def create_client(
 @router.get("")
 def list_clients(user: AdminUser = Depends(require_admin)):
     return db.table("clients") \
-        .select("id,name,phone,email,cpf_cnpj,created_at") \
+        .select("id,name,phone,email,cpf_cnpj,access_token_expires_at,created_at") \
         .eq("company_id", user.company_id) \
         .order("created_at", desc=True).execute().data
 
 
 @router.get("/{client_id}/access-link")
 def get_access_link(client_id: str, user: AdminUser = Depends(require_admin)):
-    """Admin busca o link do portal do cliente sob demanda (para copiar e enviar manualmente)."""
-    r = db.table("clients").select("access_token,company_id") \
+    r = db.table("clients").select("access_token,access_token_expires_at,company_id") \
         .eq("id", client_id).single().execute()
     if not r.data or r.data["company_id"] != user.company_id:
         raise HTTPException(404)
-    return {"link": f"{settings.portal_base_url}/portal/{r.data['access_token']}"}
+    return {
+        "link": f"{settings.portal_base_url}/portal/{r.data['access_token']}",
+        "expires_at": r.data.get("access_token_expires_at"),
+    }
+
+
+@router.post("/{client_id}/rotate-link")
+@limiter.limit("10/minute")
+def rotate_access_link(
+    request: Request, client_id: str,
+    user: AdminUser = Depends(require_admin),
+):
+    """Gera novo token (invalida o anterior) com prazo de validade renovado."""
+    r = db.table("clients").select("company_id") \
+        .eq("id", client_id).single().execute().data
+    if not r or r["company_id"] != user.company_id:
+        raise HTTPException(404)
+    token, expires_at = _new_token_with_expiry()
+    db.table("clients").update({
+        "access_token": token,
+        "access_token_expires_at": expires_at,
+    }).eq("id", client_id).execute()
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.rotate_token", entity_type="client", entity_id=client_id,
+    )
+    return {
+        "link": f"{settings.portal_base_url}/portal/{token}",
+        "expires_at": expires_at,
+    }
 
 
 @router.post("/{client_id}/send-link")
 @limiter.limit("10/minute")
 async def send_portal_link(
-    request: Request,
-    client_id: str,
+    request: Request, client_id: str,
     user: AdminUser = Depends(require_admin),
 ):
-    """Envia o link do portal via WhatsApp manualmente."""
-    r = db.table("clients").select("name,phone,access_token,company_id") \
+    r = db.table("clients").select("name,phone,access_token,access_token_expires_at,company_id") \
         .eq("id", client_id).single().execute().data
     if not r or r["company_id"] != user.company_id:
         raise HTTPException(404)
@@ -69,6 +112,11 @@ async def send_portal_link(
     msg = f"Olá {r['name']}! Acompanhe sua instalação fotovoltaica: {link}"
     try:
         await send_whatsapp(r["phone"], msg)
+        log_audit(
+            company_id=user.company_id, actor=user,
+            action="client.send_link", entity_type="client", entity_id=client_id,
+            metadata={"channel": "whatsapp"},
+        )
         return {"sent": True}
     except Exception as e:
         raise HTTPException(502, f"Falha ao enviar: {e}")
@@ -77,8 +125,12 @@ async def send_portal_link(
 @router.get("/by-token/{token}")
 @limiter.limit("30/minute")
 def get_by_token(request: Request, token: str):
-    r = db.table("clients").select("id,name,email,phone,company_id") \
+    r = db.table("clients").select("id,name,email,phone,company_id,access_token_expires_at") \
         .eq("access_token", token).single().execute()
     if not r.data:
         raise HTTPException(404)
+    exp = r.data.get("access_token_expires_at")
+    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        raise HTTPException(410, "Link expirado — peça à equipe um novo link.")
+    r.data.pop("access_token_expires_at", None)
     return r.data
