@@ -31,17 +31,35 @@ class ProjectUpdate(BaseModel):
     payment_method: str | None = None
 
 
-def _assert_client_in_company(client_id: str, company_id: str) -> None:
-    row = db.table("clients").select("company_id").eq("id", client_id).single().execute().data
-    if not row or row["company_id"] != company_id:
+def _assert_client_access(client_id: str, user: AdminUser) -> dict:
+    row = db.table("clients").select("company_id,seller_id") \
+        .eq("id", client_id).single().execute().data
+    if not row or row["company_id"] != user.company_id:
         raise HTTPException(404, "Cliente não encontrado")
+    if user.role == "seller" and row.get("seller_id") != user.user_id:
+        raise HTTPException(404, "Cliente não encontrado")
+    return row
 
 
-def _assert_project_in_company(project_id: str, company_id: str) -> dict:
-    row = db.table("projects").select("*,company_id").eq("id", project_id).single().execute().data
-    if not row or row["company_id"] != company_id:
+def _assert_project_access(project_id: str, user: AdminUser) -> dict:
+    row = db.table("projects").select("*,company_id,seller_id") \
+        .eq("id", project_id).single().execute().data
+    if not row or row["company_id"] != user.company_id:
+        raise HTTPException(404, "Projeto não encontrado")
+    if user.role == "seller" and row.get("seller_id") != user.user_id:
         raise HTTPException(404, "Projeto não encontrado")
     return row
+
+
+def _resolve_seller_id(user: AdminUser, requested: str | None) -> str | None:
+    if user.role == "seller":
+        return user.user_id
+    if requested:
+        owner = db.table("users").select("company_id") \
+            .eq("id", requested).single().execute().data
+        if not owner or owner["company_id"] != user.company_id:
+            raise HTTPException(400, "seller_id inválido")
+    return requested
 
 
 def _validate_payment_method(method: str | None) -> None:
@@ -51,29 +69,38 @@ def _validate_payment_method(method: str | None) -> None:
 
 @router.post("")
 def create_project(payload: ProjectIn, user: AdminUser = Depends(require_admin)):
-    _assert_client_in_company(payload.client_id, user.company_id)
+    client = _assert_client_access(payload.client_id, user)
     _validate_payment_method(payload.payment_method)
-    data = payload.model_dump(exclude_none=True) | {"company_id": user.company_id}
+    seller_id = _resolve_seller_id(user, payload.seller_id) or client.get("seller_id")
+    data = payload.model_dump(exclude_none=True, exclude={"seller_id"}) | {
+        "company_id": user.company_id,
+        "seller_id": seller_id,
+    }
     r = db.table("projects").insert(data).execute()
     return r.data[0]
 
 
 @router.get("")
 def list_projects(user: AdminUser = Depends(require_admin)):
-    return db.table("projects").select(
+    q = db.table("projects").select(
         "id,current_phase,address,system_size_kwp,contract_value,paid_amount,payment_method,"
-        "created_at,installed_at,"
-        "client:clients(id,name,phone,email),seller:users(id,name)"
-    ).eq("company_id", user.company_id).order("created_at", desc=True).execute().data
+        "created_at,updated_at,installed_at,seller_id,"
+        "client:clients(id,name,phone,email),"
+        "seller:users!projects_seller_id_fkey(id,name)"
+    ).eq("company_id", user.company_id)
+    if user.role == "seller":
+        q = q.eq("seller_id", user.user_id)
+    return q.order("created_at", desc=True).execute().data
 
 
 @router.get("/{project_id}")
 def get_project(project_id: str, user: AdminUser = Depends(require_admin)):
-    _assert_project_in_company(project_id, user.company_id)
+    _assert_project_access(project_id, user)
     r = db.table("projects").select(
         "id,current_phase,address,system_size_kwp,contract_value,paid_amount,payment_method,"
-        "created_at,installed_at,"
+        "created_at,updated_at,installed_at,seller_id,"
         "client:clients(id,name,phone,email,access_token),"
+        "seller:users!projects_seller_id_fkey(id,name),"
         "phases:project_phases(*),"
         "documents:project_documents(*),photos:project_photos(*)"
     ).eq("id", project_id).single().execute()
@@ -89,7 +116,7 @@ def update_project(
     payload: ProjectUpdate,
     user: AdminUser = Depends(require_admin),
 ):
-    _assert_project_in_company(project_id, user.company_id)
+    _assert_project_access(project_id, user)
     _validate_payment_method(payload.payment_method)
     data = payload.model_dump(exclude_none=True)
     if not data:

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
+import { useMe } from "@/lib/useMe";
 
 interface Client {
   id: string;
@@ -11,6 +12,15 @@ interface Client {
   phone: string;
   email: string | null;
   access_token_expires_at: string | null;
+  seller_id: string | null;
+  seller: { id: string; name: string } | null;
+}
+
+interface Seller {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "seller";
 }
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -43,6 +53,7 @@ type NewClientForm = {
   phone: string;
   email: string;
   cpf_cnpj: string;
+  seller_id: string;
   withProject: boolean;
   project: ProjectForm;
 };
@@ -52,22 +63,30 @@ const EMPTY_NEW_CLIENT: NewClientForm = {
   phone: "",
   email: "",
   cpf_cnpj: "",
+  seller_id: "",
   withProject: false,
   project: { ...EMPTY_PROJECT },
 };
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [sellers, setSellers] = useState<Seller[]>([]);
   const [form, setForm] = useState<NewClientForm>(EMPTY_NEW_CLIENT);
   const [projectForm, setProjectForm] = useState<Record<string, ProjectForm>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const dialog = useDialog();
   const toast = useToast();
+  const { isAdmin } = useMe();
 
   const reload = () => api.get<Client[]>(`/clients`).then(setClients).catch(() => {});
 
   useEffect(() => { reload(); }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.get<Seller[]>("/users/sellers").then(setSellers).catch(() => {});
+  }, [isAdmin]);
 
   async function createClient(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +98,7 @@ export default function ClientsPage() {
         phone: form.phone,
         email: form.email || null,
         cpf_cnpj: form.cpf_cnpj || null,
+        seller_id: isAdmin && form.seller_id ? form.seller_id : null,
       });
 
       if (form.withProject) {
@@ -254,6 +274,23 @@ export default function ClientsPage() {
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
               />
             </Field>
+
+            {isAdmin && (
+              <Field label="Atribuir a qual vendedor?" hint="Deixe em branco para sem vendedor">
+                <select
+                  value={form.seller_id}
+                  onChange={(e) => setForm({ ...form, seller_id: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-invictus"
+                >
+                  <option value="">—</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.role === "admin" ? "(admin)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </fieldset>
 
           <label className="flex items-center gap-2 text-sm text-invictus-deep cursor-pointer select-none">
@@ -385,9 +422,16 @@ export default function ClientsPage() {
               : 0;
             return (
               <details key={c.id} className="bg-white rounded shadow">
-                <summary className="px-4 py-3 cursor-pointer flex justify-between items-center">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="text-sm text-slate-500">{c.phone}</span>
+                <summary className="px-4 py-3 cursor-pointer flex justify-between items-center gap-2">
+                  <span className="font-medium truncate">{c.name}</span>
+                  <span className="flex items-center gap-3 shrink-0">
+                    {isAdmin && c.seller?.name && (
+                      <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        {c.seller.name}
+                      </span>
+                    )}
+                    <span className="text-sm text-slate-500">{c.phone}</span>
+                  </span>
                 </summary>
                 <div className="px-4 pb-4 border-t pt-3 space-y-4">
                   <div className="flex gap-2 flex-wrap items-center">

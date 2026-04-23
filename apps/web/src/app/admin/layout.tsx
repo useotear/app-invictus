@@ -5,6 +5,18 @@ import { usePathname } from "next/navigation";
 import { AuthGuard, signOut } from "./AuthGuard";
 import { DialogProvider } from "@/components/DialogProvider";
 import { ToastProvider } from "@/components/ToastProvider";
+import { useMe } from "@/lib/useMe";
+
+function RoleBadge() {
+  const { me } = useMe();
+  if (!me) return null;
+  const label = me.role === "admin" ? "Admin" : "Vendedor";
+  return (
+    <span className="text-[10px] font-semibold tracking-wider uppercase bg-invictus-accent/20 text-invictus-accent px-2 py-1 rounded-full">
+      {label}
+    </span>
+  );
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -28,12 +40,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin" className="hover:text-invictus-accent transition">Projetos</Link>
                 <Link href="/admin/clients" className="hover:text-invictus-accent transition">Clientes</Link>
               </nav>
-              <button
-                onClick={signOut}
-                className="ml-auto text-xs text-white/70 hover:text-invictus-accent"
-              >
-                Sair
-              </button>
+              <div className="ml-auto flex items-center gap-3">
+                <RoleBadge />
+                <button
+                  onClick={signOut}
+                  className="text-xs text-white/70 hover:text-invictus-accent"
+                >
+                  Sair
+                </button>
+              </div>
             </div>
           </header>
         )}

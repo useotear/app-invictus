@@ -28,6 +28,7 @@ interface ProjectDetail {
   payment_method: string | null;
   current_phase: number;
   client: { name: string; phone: string; email: string | null; access_token: string };
+  seller: { id: string; name: string } | null;
   phases: Phase[];
 }
 
@@ -185,6 +186,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <Link href={`/portal/${p.client.access_token}`} className="text-invictus-accent hover:underline">
             🔗 Link do portal
           </Link>
+          {p.seller?.name && (
+            <span className="text-white/60">
+              Vendedor: <b className="text-white/85">{p.seller.name}</b>
+            </span>
+          )}
         </div>
       </div>
 

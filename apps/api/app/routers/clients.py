@@ -21,12 +21,35 @@ class ClientIn(BaseModel):
     phone: str = Field(..., pattern=r"^\d{10,13}$")
     email: str | None = Field(None, max_length=255)
     cpf_cnpj: str | None = Field(None, pattern=r"^\d{11}$|^\d{14}$")
+    # Admin pode atribuir o vendedor; seller ignora e recebe o próprio id.
+    seller_id: str | None = None
 
 
 def _new_token_with_expiry() -> tuple[str, str]:
     token = secrets.token_urlsafe(24)
     expires_at = (datetime.now(timezone.utc) + timedelta(days=TOKEN_TTL_DAYS)).isoformat()
     return token, expires_at
+
+
+def _load_client_for(user: AdminUser, client_id: str, *, columns: str) -> dict:
+    """Carrega cliente garantindo que user tem acesso (admin ou dono)."""
+    r = db.table("clients").select(f"{columns},company_id,seller_id") \
+        .eq("id", client_id).single().execute().data
+    if not r or r["company_id"] != user.company_id:
+        raise HTTPException(404)
+    if user.role == "seller" and r.get("seller_id") != user.user_id:
+        raise HTTPException(404)  # 404 propositalmente pra não vazar existência
+    return r
+
+
+def _resolve_seller_id(user: AdminUser, requested: str | None) -> str | None:
+    if user.role == "seller":
+        return user.user_id
+    if requested:
+        owner = db.table("users").select("company_id").eq("id", requested).single().execute().data
+        if not owner or owner["company_id"] != user.company_id:
+            raise HTTPException(400, "seller_id inválido")
+    return requested
 
 
 @router.post("")
@@ -36,17 +59,20 @@ def create_client(
     payload: ClientIn,
     user: AdminUser = Depends(require_admin),
 ):
+    seller_id = _resolve_seller_id(user, payload.seller_id)
     token, expires_at = _new_token_with_expiry()
-    data = payload.model_dump() | {
+    data = payload.model_dump(exclude={"seller_id"}) | {
         "access_token": token,
         "access_token_expires_at": expires_at,
         "company_id": user.company_id,
+        "seller_id": seller_id,
     }
     r = db.table("clients").insert(data).execute()
     client = r.data[0]
     log_audit(
         company_id=user.company_id, actor=user,
         action="client.create", entity_type="client", entity_id=client["id"],
+        metadata={"seller_id": seller_id},
     )
     client.pop("access_token", None)
     return client
@@ -54,21 +80,21 @@ def create_client(
 
 @router.get("")
 def list_clients(user: AdminUser = Depends(require_admin)):
-    return db.table("clients") \
-        .select("id,name,phone,email,cpf_cnpj,access_token_expires_at,created_at") \
-        .eq("company_id", user.company_id) \
-        .order("created_at", desc=True).execute().data
+    q = db.table("clients") \
+        .select("id,name,phone,email,cpf_cnpj,access_token_expires_at,created_at,seller_id,"
+                "seller:users!clients_seller_id_fkey(id,name)") \
+        .eq("company_id", user.company_id)
+    if user.role == "seller":
+        q = q.eq("seller_id", user.user_id)
+    return q.order("created_at", desc=True).execute().data
 
 
 @router.get("/{client_id}/access-link")
 def get_access_link(client_id: str, user: AdminUser = Depends(require_admin)):
-    r = db.table("clients").select("access_token,access_token_expires_at,company_id") \
-        .eq("id", client_id).single().execute()
-    if not r.data or r.data["company_id"] != user.company_id:
-        raise HTTPException(404)
+    c = _load_client_for(user, client_id, columns="access_token,access_token_expires_at")
     return {
-        "link": f"{settings.portal_base_url}/portal/{r.data['access_token']}",
-        "expires_at": r.data.get("access_token_expires_at"),
+        "link": f"{settings.portal_base_url}/portal/{c['access_token']}",
+        "expires_at": c.get("access_token_expires_at"),
     }
 
 
@@ -79,10 +105,7 @@ def rotate_access_link(
     user: AdminUser = Depends(require_admin),
 ):
     """Gera novo token (invalida o anterior) com prazo de validade renovado."""
-    r = db.table("clients").select("company_id") \
-        .eq("id", client_id).single().execute().data
-    if not r or r["company_id"] != user.company_id:
-        raise HTTPException(404)
+    _load_client_for(user, client_id, columns="id")
     token, expires_at = _new_token_with_expiry()
     db.table("clients").update({
         "access_token": token,
@@ -104,14 +127,11 @@ async def send_portal_link(
     request: Request, client_id: str,
     user: AdminUser = Depends(require_admin),
 ):
-    r = db.table("clients").select("name,phone,access_token,access_token_expires_at,company_id") \
-        .eq("id", client_id).single().execute().data
-    if not r or r["company_id"] != user.company_id:
-        raise HTTPException(404)
-    link = f"{settings.portal_base_url}/portal/{r['access_token']}"
-    msg = f"Olá {r['name']}! Acompanhe sua instalação fotovoltaica: {link}"
+    c = _load_client_for(user, client_id, columns="name,phone,access_token")
+    link = f"{settings.portal_base_url}/portal/{c['access_token']}"
+    msg = f"Olá {c['name']}! Acompanhe sua instalação fotovoltaica: {link}"
     try:
-        await send_whatsapp(r["phone"], msg)
+        await send_whatsapp(c["phone"], msg)
         log_audit(
             company_id=user.company_id, actor=user,
             action="client.send_link", entity_type="client", entity_id=client_id,

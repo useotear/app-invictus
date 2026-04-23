@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from ..db import db
 from ..deps import AdminUser, require_admin
 
 router = APIRouter(tags=["auth"])
@@ -13,3 +14,14 @@ def whoami(user: AdminUser = Depends(require_admin)):
         "company_id": user.company_id,
         "role": user.role,
     }
+
+
+@router.get("/users/sellers")
+def list_sellers(user: AdminUser = Depends(require_admin)):
+    """Lista vendedores da empresa. Apenas admin pode ver."""
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin")
+    return db.table("users") \
+        .select("id,name,email,role") \
+        .eq("company_id", user.company_id) \
+        .order("name").execute().data

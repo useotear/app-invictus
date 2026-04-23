@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { clearMeCache } from "@/lib/useMe";
 
 interface SessionUser {
   id: string;
@@ -49,6 +50,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export async function signOut() {
+  clearMeCache();
   await supabase.auth.signOut();
   window.location.href = "/admin/login";
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
+import { useMe } from "@/lib/useMe";
 
 interface Project {
   id: string;
@@ -11,7 +12,7 @@ interface Project {
   system_size_kwp: number | null;
   updated_at?: string | null;
   client: { name: string; phone: string };
-  seller: { name: string } | null;
+  seller: { id: string; name: string } | null;
 }
 
 type Filter = "all" | "in_progress" | "late";
@@ -38,6 +39,7 @@ export default function AdminHome() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const { isAdmin } = useMe();
 
   useEffect(() => {
     api.get<Project[]>(`/projects`)
@@ -175,11 +177,14 @@ export default function AdminHome() {
                   {p.system_size_kwp ? `${p.system_size_kwp} kWp` : "—"}
                   {p.address ? ` • ${p.address}` : ""}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-[10px] font-semibold text-invictus-accent bg-invictus-accent/10 px-2 py-0.5 rounded">
                     {phaseLabel(p.current_phase)}
                   </span>
                   <span className="text-[10px] text-slate-400">{updatedLabel(p.updated_at)}</span>
+                  {isAdmin && p.seller?.name && (
+                    <span className="text-[10px] text-slate-500">• {p.seller.name}</span>
+                  )}
                 </div>
               </div>
               <span className="text-slate-300 text-lg">›</span>

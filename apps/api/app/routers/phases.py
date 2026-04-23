@@ -28,9 +28,11 @@ async def update_phase(
     bg: BackgroundTasks,
     user: AdminUser = Depends(require_admin),
 ):
-    phase = db.table("project_phases").select("*,project:projects(company_id)") \
+    phase = db.table("project_phases").select("*,project:projects(company_id,seller_id)") \
         .eq("id", phase_id).single().execute().data
     if not phase or phase["project"]["company_id"] != user.company_id:
+        raise HTTPException(404)
+    if user.role == "seller" and phase["project"].get("seller_id") != user.user_id:
         raise HTTPException(404)
 
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
