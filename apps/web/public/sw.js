@@ -23,8 +23,8 @@ self.addEventListener("push", (e) => {
   try { if (e.data) data = { ...data, ...e.data.json() }; } catch {}
   e.waitUntil(self.registration.showNotification(data.title, {
     body: data.body,
-    icon: "/icons/icon-192.webp",
-    badge: "/icons/icon-192.webp",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
     data: { url: data.url },
   }));
 });
