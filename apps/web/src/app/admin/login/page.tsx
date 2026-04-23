@@ -35,7 +35,7 @@ export default function AdminLogin() {
     <main className="min-h-screen flex items-center justify-center p-6 bg-invictus">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-card p-8">
         <div className="flex flex-col items-center mb-6">
-          <Image src="/logo.webp" alt="Invictus" width={80} height={80} className="object-contain" />
+          <Image src="/logo.png" alt="Invictus" width={80} height={80} className="object-contain" />
           <h1 className="mt-4 font-bold text-invictus-deep text-xl">Painel Invictus</h1>
           <p className="text-xs text-slate-500 mt-1">Acesso restrito à equipe</p>
         </div>

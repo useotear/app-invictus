@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Invictus Solar — Acompanhamento",
   description: "Acompanhe sua instalação fotovoltaica em tempo real",
   manifest: "/manifest.json",
-  icons: { icon: "/logo.webp", apple: "/logo.webp" },
+  icons: { icon: "/logo.png", apple: "/logo.png" },
 };
 
 export const viewport: Viewport = {
