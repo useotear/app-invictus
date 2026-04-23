@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PortalRealtime } from "./realtime";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { API_URL } from "@/lib/supabase";
 import { Phase, PHASE_DESCRIPTIONS } from "@/lib/phases";
 
@@ -148,6 +149,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
   return (
     <main className="min-h-screen bg-invictus-bg pb-28">
       <PortalRealtime token={params.token} />
+      <InstallPrompt />
 
       <header className="bg-white px-5 py-4 flex items-center gap-3 shadow-sm">
         <div className="w-10 h-10 rounded-full bg-invictus-bg flex items-center justify-center">
