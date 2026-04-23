@@ -1,5 +1,6 @@
 import "./globals.css";
 import Script from "next/script";
+import { headers } from "next/headers";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -16,11 +17,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = headers().get("x-nonce") ?? undefined;
   return (
     <html lang="pt-BR">
       <body suppressHydrationWarning>
         {children}
-        <Script src="/sw-register.js" strategy="afterInteractive" />
+        <Script src="/sw-register.js" strategy="afterInteractive" nonce={nonce} />
       </body>
     </html>
   );

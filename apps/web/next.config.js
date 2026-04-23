@@ -1,40 +1,9 @@
 /** @type {import('next').NextConfig} */
 
-// API_URL vem do build-arg/env; o CSP precisa liberar o domínio do backend
-// e do Supabase pra fetch/realtime.
-const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseWss = supabaseUrl.replace(/^https?:\/\//, "wss://");
-
-const connectSrc = [
-  "'self'",
-  apiUrl,
-  supabaseUrl,
-  supabaseWss,
-].filter(Boolean).join(" ");
-
-const isDev = process.env.NODE_ENV !== "production";
-
-// Em dev o Next usa inline scripts + eval pro React Refresh / HMR.
-// Em produção mantém estrito.
-const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-  : "script-src 'self'";
-
-const csp = [
-  "default-src 'self'",
-  `connect-src ${connectSrc}${isDev ? " ws: wss:" : ""}`,
-  "img-src 'self' data: blob:",
-  "style-src 'self' 'unsafe-inline'",
-  scriptSrc,
-  "worker-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join("; ");
+// CSP é gerada por request em src/middleware.ts (precisa de nonce dinâmico
+// para os inline scripts do Next 14). Aqui ficam só os headers estáticos.
 
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
