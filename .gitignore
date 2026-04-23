@@ -31,3 +31,16 @@ Thumbs.db
 apps/celesc-monitor/celesc_cookies.json
 apps/celesc-monitor/dados_anteriores.json
 apps/celesc-monitor/celesc_monitor.log
+
+# celesc-monitor debug/scratch
+apps/celesc-monitor/debug_*.html
+apps/celesc-monitor/debug_*.txt
+apps/celesc-monitor/debug_*.py
+apps/celesc-monitor/snapshot_*.json
+apps/celesc-monitor/0
+apps/celesc-monitor/cd
+apps/celesc-monitor/python
+apps/celesc-monitor/Abrindo
+apps/celesc-monitor/Aguardando
+apps/celesc-monitor/Clicou
+apps/celesc-monitor/Janela
