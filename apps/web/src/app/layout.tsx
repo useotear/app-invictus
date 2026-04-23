@@ -18,7 +18,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Script src="/sw-register.js" strategy="afterInteractive" />
       </body>

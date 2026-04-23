@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { PortalRealtime } from "./realtime";
 import { API_URL } from "@/lib/supabase";
-import { Phase } from "@/lib/phases";
+import { Phase, PHASE_DESCRIPTIONS } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -20,12 +19,44 @@ interface Resp {
   projects: Project[];
 }
 
-async function load(token: string): Promise<Resp | null> {
+type LoadResult =
+  | { ok: true; data: Resp }
+  | { ok: false; status: number; detail: string };
+
+async function load(token: string): Promise<LoadResult> {
+  const url = `${API_URL}/projects/by-client-token/${token}`;
   try {
-    const r = await fetch(`${API_URL}/projects/by-client-token/${token}`, { cache: "no-store" });
-    if (!r.ok) return null;
-    return r.json();
-  } catch { return null; }
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) {
+      let detail = r.statusText;
+      try {
+        const body = await r.json();
+        if (body?.detail) detail = body.detail;
+      } catch { /* ignore */ }
+      return { ok: false, status: r.status, detail };
+    }
+    return { ok: true, data: await r.json() };
+  } catch (e) {
+    return { ok: false, status: 0, detail: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+function ErrorScreen({ title, message, url }: { title: string; message: string; url?: string }) {
+  const isDev = process.env.NODE_ENV !== "production";
+  return (
+    <main className="min-h-screen bg-invictus-bg flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-card p-6 space-y-3">
+        <h1 className="text-xl font-bold text-invictus-deep">{title}</h1>
+        <p className="text-sm text-slate-600">{message}</p>
+        {isDev && url && (
+          <details className="text-xs text-slate-400">
+            <summary className="cursor-pointer">Detalhes (dev)</summary>
+            <p className="mt-1 font-mono break-all">{url}</p>
+          </details>
+        )}
+      </div>
+    </main>
+  );
 }
 
 function projectType(size: number | null) {
@@ -57,9 +88,39 @@ function fmtBRLmil(v: number) {
 }
 
 export default async function Portal({ params }: { params: { token: string } }) {
-  const data = await load(params.token);
-  if (!data) notFound();
-  const { client, projects } = data;
+  const result = await load(params.token);
+  const debugUrl = `${API_URL}/projects/by-client-token/${params.token}`;
+
+  if (!result.ok) {
+    if (result.status === 404) {
+      return <ErrorScreen
+        title="Link inválido"
+        message="Esse link não existe ou foi substituído. Peça à equipe Invictus um novo link."
+        url={debugUrl}
+      />;
+    }
+    if (result.status === 410) {
+      return <ErrorScreen
+        title="Link expirado"
+        message={result.detail || "Por segurança, os links do portal expiram. Peça à equipe um novo link."}
+        url={debugUrl}
+      />;
+    }
+    if (result.status === 0) {
+      return <ErrorScreen
+        title="Não consegui falar com o servidor"
+        message="Verifique sua conexão e tente novamente em alguns instantes."
+        url={debugUrl}
+      />;
+    }
+    return <ErrorScreen
+      title="Algo deu errado"
+      message={`${result.status} — ${result.detail}`}
+      url={debugUrl}
+    />;
+  }
+
+  const { client, projects } = result.data;
 
   if (projects.length === 0) {
     return (
@@ -71,17 +132,18 @@ export default async function Portal({ params }: { params: { token: string } }) 
     );
   }
 
-  // Mostra o primeiro (e futuramente mais ativo); client pode navegar via dashboards
-  const project = projects[0];
-  const pct = Math.round((project.current_phase / 12) * 100);
-  const kwp = project.system_size_kwp ?? 0;
-  // Referências: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh,
+  const primary = projects[0];
+  const others = projects.slice(1);
+  const pct = Math.round((primary.current_phase / 12) * 100);
+  const kwp = primary.system_size_kwp ?? 0;
+  // Estimativas: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh,
   // tarifa residencial média SC ~R$ 0,85/kWh.
   const geracaoMWh = Math.round(kwp * 1.4);
   const co2Ton = +(geracaoMWh * 0.076).toFixed(1);
   const economiaBRL = Math.round(geracaoMWh * 1000 * 0.85);
-  const nextPhase = project.phases.find((p) => p.status !== "completed");
-  const currentLabel = phaseLabel(project.current_phase);
+  const nextPhase = primary.phases.find((p) => p.status !== "completed");
+  const currentLabel = phaseLabel(primary.current_phase);
+  const totalDocs = projects.reduce((s, p) => s + p.documents_count, 0);
 
   return (
     <main className="min-h-screen bg-invictus-bg pb-28">
@@ -94,12 +156,6 @@ export default async function Portal({ params }: { params: { token: string } }) 
           </span>
         </div>
         <span className="font-bold text-invictus-deep text-lg flex-1">Invictus Soluções</span>
-        <button className="relative p-1" aria-label="Notificações">
-          <svg className="w-6 h-6 text-invictus" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
-          </svg>
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-invictus-accent" />
-        </button>
       </header>
 
       <section
@@ -111,9 +167,9 @@ export default async function Portal({ params }: { params: { token: string } }) 
           backgroundPosition: "center",
         }}
       >
-        <div className="flex gap-1 mb-3">
+        <div className="flex gap-1 mb-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => {
-            const segActive = i < Math.ceil((project.current_phase / 12) * 6);
+            const segActive = i < Math.ceil((primary.current_phase / 12) * 6);
             return (
               <span
                 key={i}
@@ -124,23 +180,25 @@ export default async function Portal({ params }: { params: { token: string } }) 
             );
           })}
         </div>
-        <p className="text-xs text-white/75">Fase {project.current_phase} de 12</p>
+        <p className="text-xs text-white/75">Fase {primary.current_phase} de 12</p>
         <h1 className="text-4xl font-bold mt-1 leading-tight">
           Olá, {client.name.split(" ").slice(0, 2).join(" ")}
         </h1>
         <p className="text-sm text-white/80 mt-2">
-          Seu sistema está na fase {project.current_phase} de 12
+          {projects.length > 1
+            ? `Você tem ${projects.length} projetos em andamento.`
+            : `Seu sistema está na fase ${primary.current_phase} de 12`}
         </p>
       </section>
 
       <div className="px-5 -mt-20 space-y-4 relative z-10">
         <Link
-          href={`/portal/${params.token}/${project.id}`}
+          href={`/portal/${params.token}/${primary.id}`}
           className="block bg-white rounded-2xl shadow-card overflow-hidden border-l-4 border-invictus-accent"
         >
           <div className="p-5">
             <div className="flex items-start gap-3">
-              <div className="shrink-0 w-11 h-11 rounded-full bg-invictus flex items-center justify-center">
+              <div className="shrink-0 w-11 h-11 rounded-full bg-invictus flex items-center justify-center" aria-hidden="true">
                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v1H2V5zm0 3h16v9a2 2 0 01-2 2H4a2 2 0 01-2-2V8zm3 3a1 1 0 100 2h2a1 1 0 100-2H5zm0 4a1 1 0 100 2h10a1 1 0 100-2H5z"/>
                 </svg>
@@ -149,17 +207,17 @@ export default async function Portal({ params }: { params: { token: string } }) 
                 <h2 className="text-xl font-bold text-invictus-deep leading-tight">
                   {projectType(kwp)} — {kwp || "—"} kWp
                 </h2>
-                {project.address && (
+                {primary.address && (
                   <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                       <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
                     </svg>
-                    {project.address}
+                    {primary.address}
                   </p>
                 )}
               </div>
               <span className="shrink-0 px-3 py-1 bg-invictus-accent/20 text-invictus-deep text-xs font-bold rounded-full">
-                Fase {project.current_phase}/12
+                Fase {primary.current_phase}/12
               </span>
             </div>
             <div className="mt-4">
@@ -174,7 +232,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
           </div>
           <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center" aria-hidden="true">
                 <svg className="w-4 h-4 text-invictus" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/>
                 </svg>
@@ -186,34 +244,51 @@ export default async function Portal({ params }: { params: { token: string } }) 
         </Link>
 
         {nextPhase && (
-          <div className="bg-white rounded-2xl shadow-sm p-5 flex items-start gap-3">
-            <div className="shrink-0 w-11 h-11 rounded-full bg-invictus flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
-                Próximo passo
-              </p>
-              <p className="text-lg font-bold text-invictus mt-0.5">{nextPhase.phase_name}</p>
-              {nextPhase.scheduled_date ? (
-                <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-invictus" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm0 5h8a1 1 0 010 2H6a1 1 0 010-2z" clipRule="evenodd"/>
-                  </svg>
-                  Agendado para {fmtDate(nextPhase.scheduled_date)}.
+          <div className="bg-white rounded-2xl shadow-sm p-5">
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-11 h-11 rounded-full bg-invictus flex items-center justify-center" aria-hidden="true">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
+                  Próximo passo
                 </p>
-              ) : (
-                <p className="text-xs text-slate-500 mt-1">Aguardando data de agendamento.</p>
-              )}
+                <p className="text-lg font-bold text-invictus mt-0.5">{nextPhase.phase_name}</p>
+                {nextPhase.scheduled_date ? (
+                  <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-invictus" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm0 5h8a1 1 0 010 2H6a1 1 0 010-2z" clipRule="evenodd"/>
+                    </svg>
+                    Agendado para {fmtDate(nextPhase.scheduled_date)}.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">Aguardando data de agendamento.</p>
+                )}
+              </div>
             </div>
-            <span className="text-slate-300 text-xl self-center">›</span>
+            {PHASE_DESCRIPTIONS[nextPhase.phase_number] && (
+              <details className="group mt-3 pl-14">
+                <summary className="cursor-pointer list-none text-xs font-semibold text-invictus hover:underline flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path fillRule="evenodd" d="M7.05 5.05a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 11-1.414-1.414L10.586 10 7.05 6.464a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                  O que acontece nessa etapa?
+                </summary>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                  {PHASE_DESCRIPTIONS[nextPhase.phase_number]}
+                </p>
+              </details>
+            )}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-3">
-          <div className="shrink-0 w-11 h-11 rounded-full bg-emerald-500 flex items-center justify-center">
+        <Link
+          href={`/portal/${params.token}/${primary.id}#documentos`}
+          className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-3 hover:shadow-md transition"
+        >
+          <div className="shrink-0 w-11 h-11 rounded-full bg-emerald-500 flex items-center justify-center" aria-hidden="true">
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/>
             </svg>
@@ -223,27 +298,24 @@ export default async function Portal({ params }: { params: { token: string } }) 
               Documentos
             </p>
             <p className="text-base font-bold text-invictus mt-0.5">
-              {project.documents_count} {project.documents_count === 1 ? "disponível" : "disponíveis"}
+              {totalDocs} {totalDocs === 1 ? "disponível" : "disponíveis"}
             </p>
           </div>
-          <Link
-            href={`/portal/${params.token}/${project.id}#documentos`}
-            className="shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition"
-            aria-label="Ver documentos"
-          >
+          <span className="shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center" aria-hidden="true">
             <svg className="w-4 h-4 text-invictus" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-          </Link>
-        </div>
+          </span>
+        </Link>
 
         <div className="bg-invictus-deep text-white rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <h3 className="font-bold">Resumo do sistema</h3>
-            <Link href={`/portal/${params.token}/${project.id}`} className="text-xs text-invictus-accent hover:underline">
+            <Link href={`/portal/${params.token}/${primary.id}`} className="text-xs text-invictus-accent hover:underline">
               Ver mais →
             </Link>
           </div>
+          <p className="text-[10px] text-white/60 mb-4">Estimativas com base na sua potência instalada e referências de SC.</p>
           <div className="grid grid-cols-4 gap-2">
             <Stat icon="⚡" value={`${kwp || "—"}`} unit="kWp" label="Potência instalada" />
             <Stat icon="☀️" value={geracaoMWh.toLocaleString("pt-BR")} unit="MWh" label="Geração estimada/ano" />
@@ -251,17 +323,76 @@ export default async function Portal({ params }: { params: { token: string } }) 
             <Stat icon="💰" value={fmtBRLmil(economiaBRL).replace("R$ ", "R$")} unit="" label="Economia anual" />
           </div>
         </div>
+
+        {others.length > 0 && (
+          <section className="space-y-2 pt-2">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
+              Meus outros projetos
+            </p>
+            <ul className="space-y-2">
+              {others.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    href={`/portal/${params.token}/${p.id}`}
+                    className="flex items-center gap-3 bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition"
+                  >
+                    <div className="shrink-0 w-12 h-12 rounded-xl bg-invictus-accent/10 text-invictus-deep flex flex-col items-center justify-center font-bold">
+                      <span className="text-lg leading-none">{p.current_phase}</span>
+                      <span className="text-[9px] opacity-80">/12</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-invictus-deep truncate">
+                        {projectType(p.system_size_kwp)} — {p.system_size_kwp ?? "—"} kWp
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">{p.address ?? phaseLabel(p.current_phase)}</p>
+                    </div>
+                    <span className="text-slate-300 text-lg" aria-hidden="true">›</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || process.env.NEXT_PUBLIC_SUPPORT_PHONE) && (
+          <aside className="bg-white rounded-2xl shadow-sm p-5 text-sm text-slate-600">
+            <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">
+              Precisa de ajuda?
+            </p>
+            <p className="mb-3">Fale com a equipe Invictus.</p>
+            <div className="flex gap-2">
+              {process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP && (
+                <a
+                  href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 text-center bg-emerald-500 text-white font-semibold py-2.5 rounded-xl hover:brightness-110 transition"
+                >
+                  WhatsApp
+                </a>
+              )}
+              {process.env.NEXT_PUBLIC_SUPPORT_PHONE && (
+                <a
+                  href={`tel:${process.env.NEXT_PUBLIC_SUPPORT_PHONE}`}
+                  className="flex-1 text-center bg-invictus text-white font-semibold py-2.5 rounded-xl hover:bg-invictus-dark transition"
+                >
+                  Ligar
+                </a>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 flex px-2 py-2 justify-around z-20">
         <NavItem href={`/portal/${params.token}`} active label="Home" icon={
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
         }/>
-        <NavItem href={`/portal/${params.token}/${project.id}`} label="Status" icon={
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm2.5 3a.5.5 0 000 1h5a.5.5 0 000-1h-5z" clipRule="evenodd"/></svg>
+        <NavItem href={`/portal/${params.token}/${primary.id}`} label="Status" icon={
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fillRule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm2.5 3a.5.5 0 000 1h5a.5.5 0 000-1h-5z" clipRule="evenodd"/></svg>
         }/>
-        <NavItem href={`/portal/${params.token}#perfil`} label="Perfil" icon={
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>
+        <NavItem href={`/portal/${params.token}/${primary.id}#documentos`} label="Docs" icon={
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"/></svg>
         }/>
       </nav>
     </main>
@@ -271,7 +402,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
 function Stat({ icon, value, unit, label }: { icon: string; value: string; unit: string; label: string }) {
   return (
     <div className="text-center">
-      <div className="text-xl mb-1">{icon}</div>
+      <div className="text-xl mb-1" aria-hidden="true">{icon}</div>
       <p className="font-bold text-sm leading-tight">
         {value}
         {unit && <span className="text-[10px] font-medium ml-0.5 opacity-90">{unit}</span>}
@@ -285,6 +416,7 @@ function NavItem({ href, label, icon, active }: { href: string; label: string; i
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition ${
         active ? "bg-invictus-bg text-invictus" : "text-slate-400"
       }`}

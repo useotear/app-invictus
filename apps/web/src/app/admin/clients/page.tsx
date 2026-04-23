@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useDialog } from "@/components/DialogProvider";
+import { useToast } from "@/components/ToastProvider";
 
 interface Client {
   id: string;
@@ -37,13 +38,32 @@ const EMPTY_PROJECT: ProjectForm = {
   method: "pix",
 };
 
+type NewClientForm = {
+  name: string;
+  phone: string;
+  email: string;
+  cpf_cnpj: string;
+  withProject: boolean;
+  project: ProjectForm;
+};
+
+const EMPTY_NEW_CLIENT: NewClientForm = {
+  name: "",
+  phone: "",
+  email: "",
+  cpf_cnpj: "",
+  withProject: false,
+  project: { ...EMPTY_PROJECT },
+};
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", cpf_cnpj: "" });
+  const [form, setForm] = useState<NewClientForm>(EMPTY_NEW_CLIENT);
   const [projectForm, setProjectForm] = useState<Record<string, ProjectForm>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const dialog = useDialog();
+  const toast = useToast();
 
   const reload = () => api.get<Client[]>(`/clients`).then(setClients).catch(() => {});
 
@@ -54,13 +74,38 @@ export default function ClientsPage() {
     setError(null);
     setBusy(true);
     try {
-      await api.post("/clients", {
+      const client = await api.post<{ id: string }>("/clients", {
         name: form.name,
         phone: form.phone,
         email: form.email || null,
         cpf_cnpj: form.cpf_cnpj || null,
       });
-      setForm({ name: "", phone: "", email: "", cpf_cnpj: "" });
+
+      if (form.withProject) {
+        const pf = form.project;
+        try {
+          await api.post("/projects", {
+            client_id: client.id,
+            address: pf.address || null,
+            system_size_kwp: pf.kwp ? Number(pf.kwp) : null,
+            contract_value: pf.value ? Number(pf.value) : null,
+            paid_amount: pf.paid ? Number(pf.paid) : 0,
+            payment_method: pf.method || null,
+          });
+          toast.show({ message: "Cliente e projeto criados.", tone: "success" });
+        } catch (err) {
+          toast.show({
+            message: "Cliente criado, mas o projeto falhou: "
+              + (err instanceof Error ? err.message : "tente de novo pela lista."),
+            tone: "error",
+            duration: 6000,
+          });
+        }
+      } else {
+        toast.show({ message: "Cliente criado.", tone: "success" });
+      }
+
+      setForm(EMPTY_NEW_CLIENT);
       reload();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao cadastrar");
@@ -157,25 +202,175 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="bg-white rounded-lg shadow p-6">
-        <h2 className="font-bold text-lg mb-4">Novo cliente</h2>
-        <form onSubmit={createClient} className="grid grid-cols-2 gap-3">
-          <input required placeholder="Nome" className="border rounded px-3 py-2"
-            value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <input required placeholder="Telefone (só dígitos, 10 a 13)" pattern="\d{10,13}"
-            className="border rounded px-3 py-2"
-            value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-          <input type="email" placeholder="E-mail" className="border rounded px-3 py-2"
-            value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          <input placeholder="CPF/CNPJ (só dígitos)" pattern="\d{11}|\d{14}"
-            className="border rounded px-3 py-2"
-            value={form.cpf_cnpj} onChange={e => setForm({ ...form, cpf_cnpj: e.target.value })} />
-          {error && <p className="col-span-2 text-xs text-red-600">{error}</p>}
-          <button disabled={busy} className="col-span-2 bg-invictus text-white py-2 rounded font-semibold disabled:opacity-50">
-            {busy ? "Cadastrando…" : "Cadastrar cliente"}
+      <section className="bg-white rounded-2xl shadow-card p-5 sm:p-6">
+        <h2 className="font-bold text-lg text-invictus-deep mb-1">Novo cliente</h2>
+        <p className="text-xs text-slate-500 mb-5">
+          Preencha os dados do cliente. Se quiser, já cria o primeiro projeto junto.
+        </p>
+        <form onSubmit={createClient} className="space-y-4">
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Dados do cliente</legend>
+            <Field label="Nome" required>
+              <input
+                required
+                placeholder="Ex: Maria Silva"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Telefone" hint="Só dígitos, com DDD. Ex: 48999999999" required>
+                <input
+                  required
+                  inputMode="numeric"
+                  placeholder="48999999999"
+                  pattern="\d{10,13}"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                />
+              </Field>
+
+              <Field label="CPF ou CNPJ" hint="Só dígitos (opcional)">
+                <input
+                  inputMode="numeric"
+                  placeholder="00000000000"
+                  pattern="\d{11}|\d{14}"
+                  value={form.cpf_cnpj}
+                  onChange={(e) => setForm({ ...form, cpf_cnpj: e.target.value.replace(/\D/g, "") })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                />
+              </Field>
+            </div>
+
+            <Field label="E-mail" hint="Opcional">
+              <input
+                type="email"
+                placeholder="cliente@email.com"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+              />
+            </Field>
+          </fieldset>
+
+          <label className="flex items-center gap-2 text-sm text-invictus-deep cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-invictus"
+              checked={form.withProject}
+              onChange={(e) => setForm({ ...form, withProject: e.target.checked })}
+            />
+            Também criar o primeiro projeto agora
+          </label>
+
+          {form.withProject && (
+            <fieldset className="space-y-3 border-l-2 border-invictus-accent pl-4">
+              <legend className="text-[10px] font-semibold tracking-widest text-invictus uppercase">
+                Primeiro projeto
+              </legend>
+
+              <Field label="Endereço da instalação">
+                <input
+                  placeholder="Rua, número — bairro, cidade/UF"
+                  value={form.project.address}
+                  onChange={(e) => setForm({ ...form, project: { ...form.project, address: e.target.value } })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Potência (kWp)">
+                  <input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="5.50"
+                    value={form.project.kwp}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, kwp: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                  />
+                </Field>
+
+                <Field label="Forma de pagamento">
+                  <select
+                    value={form.project.method}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, method: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-invictus"
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Valor total do projeto (R$)">
+                  <input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="25000.00"
+                    value={form.project.value}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, value: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                  />
+                </Field>
+
+                <Field label="Valor já pago (R$)" hint="Deixe 0 se nada foi pago">
+                  <input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={form.project.paid}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, paid: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                  />
+                </Field>
+              </div>
+
+              {form.project.value && Number(form.project.value) > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-invictus-accent"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round((Number(form.project.paid || 0) / Number(form.project.value)) * 100),
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-invictus">
+                    {Math.min(
+                      100,
+                      Math.round((Number(form.project.paid || 0) / Number(form.project.value)) * 100),
+                    )}% pago
+                  </span>
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <button
+            disabled={busy}
+            className="w-full bg-invictus text-white py-3 rounded-xl font-semibold hover:bg-invictus-dark transition disabled:opacity-50"
+          >
+            {busy ? "Cadastrando…" : form.withProject ? "Cadastrar cliente + projeto" : "Cadastrar cliente"}
           </button>
-          <p className="col-span-2 text-[11px] text-slate-500 text-center">
-            O link do portal fica disponível na lista abaixo e pode ser enviado por WhatsApp manualmente.
+          <p className="text-[11px] text-slate-500 text-center">
+            O link do portal fica disponível na lista abaixo e pode ser enviado por WhatsApp.
           </p>
         </form>
       </section>
@@ -252,5 +447,28 @@ export default function ClientsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  required,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-invictus-deep">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </span>
+      {hint && <span className="block text-[11px] text-slate-400 mb-1">{hint}</span>}
+      <div className={hint ? "" : "mt-1"}>{children}</div>
+    </label>
   );
 }

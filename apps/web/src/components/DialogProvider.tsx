@@ -2,7 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 
-type InputType = "text" | "date" | "number";
+type InputType = "text" | "date" | "number" | "select";
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
 
 interface PromptOptions {
   title: string;
@@ -10,6 +15,7 @@ interface PromptOptions {
   placeholder?: string;
   defaultValue?: string;
   type?: InputType;
+  options?: SelectOption[];
   confirmText?: string;
   cancelText?: string;
 }
@@ -100,7 +106,22 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                 <p className="text-sm text-slate-600">{req.opts.message}</p>
               )}
 
-              {req.kind === "prompt" && (
+              {req.kind === "prompt" && req.opts.type === "select" && (
+                <select
+                  autoFocus
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-invictus"
+                >
+                  {(req.opts.options ?? []).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {req.kind === "prompt" && req.opts.type !== "select" && (
                 <input
                   autoFocus
                   type={req.opts.type ?? "text"}

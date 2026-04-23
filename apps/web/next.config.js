@@ -13,12 +13,20 @@ const connectSrc = [
   supabaseWss,
 ].filter(Boolean).join(" ");
 
+const isDev = process.env.NODE_ENV !== "production";
+
+// Em dev o Next usa inline scripts + eval pro React Refresh / HMR.
+// Em produção mantém estrito.
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self'";
+
 const csp = [
   "default-src 'self'",
-  `connect-src ${connectSrc}`,
+  `connect-src ${connectSrc}${isDev ? " ws: wss:" : ""}`,
   "img-src 'self' data: blob:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'",
+  scriptSrc,
   "worker-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthGuard, signOut } from "./AuthGuard";
 import { DialogProvider } from "@/components/DialogProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,6 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AuthGuard>
+      <ToastProvider>
       <DialogProvider>
       <div className="min-h-screen flex flex-col bg-invictus-bg">
         {!isLogin && (
@@ -40,6 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
       </div>
       </DialogProvider>
+      </ToastProvider>
     </AuthGuard>
   );
 }

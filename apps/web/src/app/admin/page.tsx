@@ -52,12 +52,38 @@ export default function AdminHome() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const staleThreshold = Date.now() - 14 * 86_400_000;
     return projects.filter((p) => {
       if (q && !`${p.client.name} ${p.address ?? ""}`.toLowerCase().includes(q)) return false;
       if (filter === "in_progress" && (p.current_phase >= 11 || p.current_phase <= 0)) return false;
+      if (filter === "late") {
+        const updatedMs = p.updated_at ? new Date(p.updated_at).getTime() : 0;
+        const stale = !updatedMs || updatedMs < staleThreshold;
+        const active = p.current_phase < 11 && p.current_phase > 0;
+        if (!(stale && active)) return false;
+      }
       return true;
     });
   }, [projects, query, filter]);
+
+  const lateCount = useMemo(() => {
+    const staleThreshold = Date.now() - 14 * 86_400_000;
+    return projects.filter((p) => {
+      const updatedMs = p.updated_at ? new Date(p.updated_at).getTime() : 0;
+      return (!updatedMs || updatedMs < staleThreshold) && p.current_phase < 11 && p.current_phase > 0;
+    }).length;
+  }, [projects]);
+
+  function updatedLabel(iso: string | null | undefined) {
+    if (!iso) return "sem atualização";
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86_400_000);
+    if (days <= 0) return "hoje";
+    if (days === 1) return "ontem";
+    if (days < 30) return `há ${days}d`;
+    const months = Math.floor(days / 30);
+    return `há ${months}mes${months > 1 ? "es" : ""}`;
+  }
 
   return (
     <div className="space-y-5">
@@ -73,14 +99,22 @@ export default function AdminHome() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm space-y-2">
-          <p className="font-semibold">Erro ao carregar projetos</p>
-          <p className="text-xs font-mono break-all">{error}</p>
-          <ul className="text-xs list-disc pl-4">
-            <li>Confirme <code>SUPABASE_JWT_SECRET</code> setado no serviço api e reiniciado.</li>
-            <li>Confirme <code>ALLOWED_ORIGINS</code> inclui a URL do frontend.</li>
-            <li>Confirme que seu usuário existe na tabela <code>users</code> com <code>company_id</code>.</li>
-            <li>Teste: abra <code>{process.env.NEXT_PUBLIC_API_URL}/health</code> — deve voltar JSON.</li>
-          </ul>
+          <p className="font-semibold">Não foi possível carregar os projetos.</p>
+          <p className="text-xs text-red-600/80">
+            Verifique sua conexão e tente novamente. Se o problema continuar, avise a equipe técnica.
+          </p>
+          {process.env.NODE_ENV !== "production" && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-red-700/80">Detalhes técnicos</summary>
+              <p className="mt-1 font-mono break-all">{error}</p>
+              <ul className="list-disc pl-4 mt-1">
+                <li><code>SUPABASE_JWT_SECRET</code> setado no serviço api e reiniciado.</li>
+                <li><code>ALLOWED_ORIGINS</code> inclui a URL do frontend.</li>
+                <li>Usuário existe em <code>users</code> com <code>company_id</code>.</li>
+                <li><code>{process.env.NEXT_PUBLIC_API_URL}/health</code> responde JSON.</li>
+              </ul>
+            </details>
+          )}
         </div>
       )}
 
@@ -95,11 +129,12 @@ export default function AdminHome() {
         {([
           ["all", `Todos (${projects.length})`],
           ["in_progress", "Em andamento"],
-          ["late", "Atrasados"],
+          ["late", `Sem mexer ${lateCount ? `(${lateCount})` : ""}`.trim()],
         ] as [Filter, string][]).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setFilter(k)}
+            aria-pressed={filter === k}
             className={`px-4 py-1.5 rounded-full text-xs font-medium transition ${
               filter === k
                 ? "bg-invictus text-white"
@@ -111,7 +146,20 @@ export default function AdminHome() {
         ))}
       </div>
 
-      {loading && <p className="text-slate-500">Carregando...</p>}
+      {loading && (
+        <ul className="space-y-3" aria-hidden="true">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <li key={i} className="flex items-center gap-4 bg-white rounded-2xl shadow-card p-4 animate-pulse">
+              <div className="shrink-0 w-14 h-14 rounded-xl bg-slate-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 bg-slate-200 rounded w-1/3" />
+                <div className="h-3 bg-slate-100 rounded w-2/3" />
+                <div className="h-3 bg-slate-100 rounded w-1/4" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <ul className="space-y-3">
         {filtered.map((p) => (
@@ -127,9 +175,12 @@ export default function AdminHome() {
                   {p.system_size_kwp ? `${p.system_size_kwp} kWp` : "—"}
                   {p.address ? ` • ${p.address}` : ""}
                 </p>
-                <span className="inline-block mt-1 text-[10px] font-semibold text-invictus-accent bg-invictus-accent/10 px-2 py-0.5 rounded">
-                  {phaseLabel(p.current_phase)}
-                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-semibold text-invictus-accent bg-invictus-accent/10 px-2 py-0.5 rounded">
+                    {phaseLabel(p.current_phase)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{updatedLabel(p.updated_at)}</span>
+                </div>
               </div>
               <span className="text-slate-300 text-lg">›</span>
             </Link>

@@ -1,11 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Phase } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { useDialog } from "@/components/DialogProvider";
+import { useToast } from "@/components/ToastProvider";
+
+const PAYMENT_METHODS = [
+  { value: "pix", label: "Pix" },
+  { value: "boleto", label: "Boleto" },
+  { value: "cartao", label: "Cartão" },
+  { value: "transferencia", label: "Transferência" },
+  { value: "financiamento", label: "Financiamento" },
+  { value: "outro", label: "Outro" },
+];
+
+const ADVANCE_DELAY_MS = 5000;
 
 interface ProjectDetail {
   id: string;
@@ -38,31 +50,86 @@ function dotColor(status: Phase["status"]) {
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const [p, setP] = useState<ProjectDetail | null>(null);
   const dialog = useDialog();
+  const toast = useToast();
+  const pendingAdvance = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reload = () => api.get<ProjectDetail>(`/projects/${params.id}`).then(setP);
   useEffect(() => { reload(); }, [params.id]);
 
+  useEffect(() => {
+    return () => {
+      if (pendingAdvance.current) clearTimeout(pendingAdvance.current);
+    };
+  }, []);
+
+  function previewMessage(phase: Phase) {
+    if (!p) return "";
+    const firstName = p.client.name.split(" ")[0];
+    return `Olá ${firstName}! Seu projeto avançou para a fase ${phase.phase_number}: ${phase.phase_name}. Acompanhe em tempo real no seu portal.`;
+  }
+
   async function complete(phase: Phase) {
+    const preview = previewMessage(phase);
     const ok = await dialog.confirm({
-      title: "Concluir fase",
-      message: `Marcar "${phase.phase_name}" como concluída? O cliente vai receber WhatsApp e push.`,
-      confirmText: "Concluir",
+      title: "Avançar para a próxima fase?",
+      message: `Prévia da notificação que o cliente vai receber:\n\n"${preview}"\n\nEnviado por WhatsApp e notificação push.`,
+      confirmText: "Avançar",
     });
     if (!ok) return;
-    await api.patch(`/phases/${phase.id}`, { status: "completed" });
-    reload();
+
+    if (pendingAdvance.current) clearTimeout(pendingAdvance.current);
+    let cancelled = false;
+
+    toast.show({
+      message: `Avançando "${phase.phase_name}"...`,
+      tone: "info",
+      duration: ADVANCE_DELAY_MS,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          cancelled = true;
+          if (pendingAdvance.current) {
+            clearTimeout(pendingAdvance.current);
+            pendingAdvance.current = null;
+          }
+          toast.show({ message: "Avanço cancelado. Nada foi enviado.", tone: "success", duration: 3000 });
+        },
+      },
+    });
+
+    pendingAdvance.current = setTimeout(async () => {
+      pendingAdvance.current = null;
+      if (cancelled) return;
+      try {
+        await api.patch(`/phases/${phase.id}`, { status: "completed" });
+        toast.show({ message: "Fase avançada. Cliente notificado.", tone: "success", duration: 3000 });
+        reload();
+      } catch (e) {
+        toast.show({
+          message: e instanceof Error ? e.message : "Falha ao avançar fase",
+          tone: "error",
+          duration: 5000,
+        });
+      }
+    }, ADVANCE_DELAY_MS);
   }
 
   async function schedule(phase: Phase) {
     const d = await dialog.prompt({
       title: `Agendar: ${phase.phase_name}`,
-      message: "Escolha a data prevista.",
+      message: "Escolha a data prevista. Deixe em branco para remover.",
       type: "date",
       defaultValue: phase.scheduled_date ?? "",
-      confirmText: "Agendar",
+      confirmText: "Salvar",
     });
-    if (!d) return;
-    await api.patch(`/phases/${phase.id}`, { scheduled_date: d, status: "in_progress" });
+    if (d === null) return;
+    const status = phase.status === "completed" ? phase.status : (d ? "in_progress" : "pending");
+    await api.patch(`/phases/${phase.id}`, { scheduled_date: d || null, status });
+    toast.show({
+      message: d ? `Agendado para ${new Date(d).toLocaleDateString("pt-BR")}` : "Agendamento removido",
+      tone: "success",
+      duration: 3000,
+    });
     reload();
   }
 
@@ -78,7 +145,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     if (amount === null) return;
     const method = await dialog.prompt({
       title: "Forma de pagamento",
-      message: "pix / boleto / cartao / transferencia / financiamento / outro",
+      type: "select",
+      options: PAYMENT_METHODS,
       defaultValue: p.payment_method ?? "pix",
       confirmText: "Salvar",
     });
@@ -87,6 +155,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       paid_amount: Number(amount),
       payment_method: method,
     });
+    toast.show({ message: "Pagamento atualizado.", tone: "success", duration: 3000 });
     reload();
   }
 
@@ -197,12 +266,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                          "Sem data — toque para agendar"}
                       </p>
                     </div>
-                    {ph.status !== "completed" && !isCurrent && (
+                    {ph.status !== "completed" && (
                       <button
                         onClick={() => schedule(ph)}
                         className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition"
                       >
-                        Agendar
+                        {ph.scheduled_date ? "Remarcar" : "Agendar"}
                       </button>
                     )}
                   </div>
