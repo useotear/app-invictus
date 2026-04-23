@@ -10,3 +10,4 @@ python-multipart==0.0.12
 
 PyJWT[crypto]==2.10.1
 slowapi==0.1.9
+sentry-sdk[fastapi]==2.17.0

@@ -12,8 +12,15 @@ def _render(template: str, *, nome: str, data: str, link: str) -> str:
             .replace("{link}", link))
 
 
-async def dispatch_phase_notifications(project_id: str, phase_number: int) -> None:
-    """Busca templates da fase e dispara WhatsApp/Push para os destinatários."""
+async def dispatch_phase_notifications(
+    project_id: str, phase_number: int, event: str = "completed"
+) -> None:
+    """Busca templates da fase/event e dispara WhatsApp/Push para os destinatários.
+
+    event:
+      - 'completed'   → fase concluída (default)
+      - 'rescheduled' → data da fase mudou após a conclusão
+    """
     project = db.table("projects").select(
         "*, client:clients(*), seller:users(name,email,phone:email)"
     ).eq("id", project_id).single().execute().data
@@ -31,7 +38,7 @@ async def dispatch_phase_notifications(project_id: str, phase_number: int) -> No
 
     templates = db.table("notification_templates").select("*") \
         .eq("company_id", company_id).eq("phase_number", phase_number) \
-        .eq("enabled", True).execute().data or []
+        .eq("event", event).eq("enabled", True).execute().data or []
 
     for tpl in templates:
         recipients = []

@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     cron_secret: str = ""
     celesc_secret: str = ""
 
+    # Observability (opcional)
+    sentry_dsn: str = ""
+    sentry_environment: str = "development"
+    sentry_traces_sample_rate: float = 0.0
+
     class Config:
         env_file = str(ENV_FILE)
         env_file_encoding = "utf-8"

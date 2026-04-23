@@ -48,6 +48,10 @@ async def update_phase(
         raise HTTPException(404)
     updated = r.data[0]
 
+    was_completed = phase["status"] == "completed"
+    old_scheduled = phase.get("scheduled_date")
+    new_scheduled = update.get("scheduled_date")
+
     if payload.status == "completed":
         if payload.completed_date is None:
             db.table("project_phases").update({"completed_date": date.today().isoformat()}) \
@@ -55,7 +59,20 @@ async def update_phase(
         next_phase = min(phase["phase_number"] + 1, 12)
         db.table("projects").update({"current_phase": next_phase}) \
             .eq("id", phase["project_id"]).execute()
-        bg.add_task(dispatch_phase_notifications, phase["project_id"], phase["phase_number"])
+        bg.add_task(
+            dispatch_phase_notifications,
+            phase["project_id"], phase["phase_number"], "completed",
+        )
+    elif (
+        was_completed
+        and new_scheduled
+        and new_scheduled != old_scheduled
+    ):
+        # Reagendamento: fase já concluída teve a data alterada.
+        bg.add_task(
+            dispatch_phase_notifications,
+            phase["project_id"], phase["phase_number"], "rescheduled",
+        )
 
     log_audit(
         company_id=user.company_id, actor=user,
