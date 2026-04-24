@@ -238,12 +238,6 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 ✓ Avançar para fase {nextPhaseNumber}
               </button>
             )}
-            <p className="text-[10px] text-white/60 mt-3 tracking-wider uppercase">
-              Ao concluir envia WhatsApp + Push para:
-            </p>
-            <p className="text-xs text-white/85 mt-1">
-              {p.client.name} (cliente)
-            </p>
           </div>
         )}
 
