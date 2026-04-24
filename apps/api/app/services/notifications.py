@@ -22,7 +22,7 @@ async def dispatch_phase_notifications(
       - 'rescheduled' → data da fase mudou após a conclusão
     """
     project = db.table("projects").select(
-        "*, client:clients(*), seller:users(name,email,phone:email)"
+        "*, client:clients(*), seller:users!projects_seller_id_fkey(id,name,email,phone)"
     ).eq("id", project_id).single().execute().data
     if not project:
         return
@@ -31,6 +31,7 @@ async def dispatch_phase_notifications(
     seller = project.get("seller")
     company_id = project["company_id"]
     portal_link = f"{settings.portal_base_url}/portal/{client['access_token']}"
+    admin_link = f"{settings.portal_base_url}/admin/projects/{project_id}"
 
     phase = db.table("project_phases").select("*") \
         .eq("project_id", project_id).eq("phase_number", phase_number).single().execute().data
@@ -41,19 +42,14 @@ async def dispatch_phase_notifications(
         .eq("event", event).eq("enabled", True).execute().data or []
 
     for tpl in templates:
-        recipients = []
+        recipients: list[tuple[str, str, str, str]] = []  # (rtype, phone, link, name)
         if tpl["recipient"] in ("client", "both") and client.get("phone"):
-            recipients.append(("client", client["phone"], client["name"]))
-        if tpl["recipient"] in ("seller", "both") and seller:
-            # vendedor recebe por WhatsApp se tiver telefone cadastrado (user.phone não existe no schema — usa email fallback)
-            pass
+            recipients.append(("client", client["phone"], portal_link, client["name"]))
+        if tpl["recipient"] in ("seller", "both") and seller and seller.get("phone"):
+            recipients.append(("seller", seller["phone"], admin_link, seller["name"]))
 
-        message = _render(tpl["template"], nome=client["name"],
-                          data=str(scheduled), link=portal_link)
-
-        for rtype, phone, _name in recipients:
-            # Pseudonimiza: mantém só os últimos 4 dígitos do telefone no log
-            # e NÃO grava a mensagem renderizada (contém nome, link com token).
+        for rtype, phone, link, _name in recipients:
+            message = _render(tpl["template"], nome=client["name"], data=str(scheduled), link=link)
             masked_phone = f"****{phone[-4:]}" if phone and len(phone) >= 4 else "****"
             log = {
                 "project_id": project_id,
@@ -66,10 +62,14 @@ async def dispatch_phase_notifications(
                 if tpl["channel"] == "whatsapp":
                     await send_whatsapp(phone, message)
                 elif tpl["channel"] == "push":
-                    subs = db.table("push_subscriptions").select("*") \
-                        .eq("client_id", client["id"]).execute().data or []
-                    # Se o cliente tem conta, manda pro app autenticado; senão, link público.
-                    url = "/cliente" if client.get("auth_user_id") else f"/portal/{client['access_token']}"
+                    if rtype == "client":
+                        subs = db.table("push_subscriptions").select("*") \
+                            .eq("client_id", client["id"]).execute().data or []
+                        url = "/cliente" if client.get("auth_user_id") else f"/portal/{client['access_token']}"
+                    else:  # seller
+                        subs = db.table("push_subscriptions").select("*") \
+                            .eq("user_id", seller["id"]).execute().data or []
+                        url = f"/admin/projects/{project_id}"
                     for sub in subs:
                         send_push(sub, title="Invictus Solar", body=message, url=url)
                 log["status"] = "sent"
@@ -78,3 +78,60 @@ async def dispatch_phase_notifications(
                 log["status"] = "failed"
                 log["error"] = str(e)
             db.table("notifications_log").insert(log).execute()
+
+
+async def notify_upcoming_installs() -> dict:
+    """Chamado por cron diário. Avisa os 'install managers' sobre instalações de amanhã."""
+    from datetime import date, timedelta
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+    # Projetos com fase 8 agendada pra amanhã e fase 9 ainda não concluída
+    phase_rows = db.table("project_phases").select(
+        "project_id,scheduled_date,"
+        "project:projects!inner(id,current_phase,address,company_id,"
+        "client:clients(name,phone))"
+    ).eq("phase_number", 8).eq("scheduled_date", tomorrow).execute().data or []
+
+    summary = {"date": tomorrow, "projects": 0, "notified": 0, "errors": []}
+
+    # Agrupa por empresa pra buscar os install_managers uma vez
+    by_company: dict[str, list[dict]] = {}
+    for row in phase_rows:
+        proj = row.get("project")
+        if not proj:
+            continue
+        if proj.get("current_phase", 0) >= 9:
+            continue  # instalação já concluída
+        by_company.setdefault(proj["company_id"], []).append(proj)
+
+    for company_id, projects in by_company.items():
+        summary["projects"] += len(projects)
+        managers = db.table("users").select("id,name,phone") \
+            .eq("company_id", company_id).eq("is_install_manager", True).execute().data or []
+        if not managers:
+            continue
+
+        lines = [f"• {p['client']['name']} — {p.get('address') or 'sem endereço'}" for p in projects]
+        body = (
+            f"Instalações agendadas para amanhã ({tomorrow}):\n\n"
+            + "\n".join(lines)
+            + "\n\nConfira o cronograma no painel."
+        )
+
+        for m in managers:
+            if m.get("phone"):
+                try:
+                    await send_whatsapp(m["phone"], body)
+                    summary["notified"] += 1
+                except Exception as e:
+                    summary["errors"].append({"user": m["id"], "channel": "whatsapp", "error": str(e)})
+
+            # push
+            subs = db.table("push_subscriptions").select("*") \
+                .eq("user_id", m["id"]).execute().data or []
+            for sub in subs:
+                send_push(sub, title="Instalações de amanhã",
+                          body=f"{len(projects)} instalação(ões) agendada(s) pra {tomorrow}",
+                          url="/admin/cronograma")
+
+    return summary

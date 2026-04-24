@@ -8,6 +8,8 @@ export interface Me {
   email: string;
   company_id: string;
   role: "admin" | "seller";
+  phone?: string | null;
+  is_install_manager?: boolean;
 }
 
 let cache: Me | null = null;

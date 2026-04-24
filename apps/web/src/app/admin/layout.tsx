@@ -40,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin" className="hover:text-invictus-accent transition">Projetos</Link>
                 <Link href="/admin/clients" className="hover:text-invictus-accent transition">Clientes</Link>
                 <Link href="/admin/cronograma" className="hover:text-invictus-accent transition">Cronograma</Link>
+                <Link href="/admin/perfil" className="hover:text-invictus-accent transition">Perfil</Link>
               </nav>
               <div className="ml-auto flex items-center gap-3">
                 <RoleBadge />

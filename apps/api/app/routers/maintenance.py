@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..db import db
 from ..deps import require_cron_secret
-from ..services.notifications import dispatch_phase_notifications
+from ..services.notifications import dispatch_phase_notifications, notify_upcoming_installs
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 
@@ -20,3 +20,9 @@ async def maintenance_check(bg: BackgroundTasks):
     for p in projects:
         bg.add_task(dispatch_phase_notifications, p["id"], 12)
     return {"triggered": len(projects)}
+
+
+@router.post("/notify-upcoming-installs", dependencies=[Depends(require_cron_secret)])
+async def upcoming_installs():
+    """Roda diário (ex: 18h). Avisa install managers sobre instalações de amanhã."""
+    return await notify_upcoming_installs()
