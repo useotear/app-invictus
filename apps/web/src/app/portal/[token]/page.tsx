@@ -137,11 +137,14 @@ export default async function Portal({ params }: { params: { token: string } }) 
   const others = projects.slice(1);
   const pct = Math.round((primary.current_phase / 12) * 100);
   const kwp = primary.system_size_kwp ?? 0;
-  // Estimativas: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh,
-  // tarifa residencial média SC ~R$ 0,85/kWh.
+  // Estimativas: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh.
+  // Tarifa por porte: B1 residencial (R$0,85), comercial pequeno (R$0,75), Grupo A (R$0,60).
+  // Lei 14.300/2022: minigeração (>75 kW) paga ~18% TUSD sobre injeção em 2026.
   const geracaoMWh = Math.round(kwp * 1.4);
   const co2Ton = +(geracaoMWh * 0.076).toFixed(1);
-  const economiaBRL = Math.round(geracaoMWh * 1000 * 0.85);
+  const tarifa = kwp <= 10 ? 0.85 : kwp <= 75 ? 0.75 : 0.6;
+  const fioBFactor = kwp > 75 ? 0.82 : 1;
+  const economiaBRL = Math.round(geracaoMWh * 1000 * tarifa * fioBFactor);
   const nextPhase = primary.phases.find((p) => p.status !== "completed");
   const currentLabel = phaseLabel(primary.current_phase);
   const totalDocs = projects.reduce((s, p) => s + p.documents_count, 0);
@@ -322,7 +325,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
             <Stat icon="⚡" value={`${kwp || "—"}`} unit="kWp" label="Potência instalada" />
             <Stat icon="☀️" value={geracaoMWh.toLocaleString("pt-BR")} unit="MWh" label="Geração estimada/ano" />
             <Stat icon="🌱" value={co2Ton.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} unit="t" label="CO₂ evitado/ano" />
-            <Stat icon="💰" value={fmtBRLmil(economiaBRL).replace("R$ ", "R$")} unit="" label="Economia anual" />
+            <Stat icon="💰" value={fmtBRLmil(economiaBRL).replace("R$ ", "R$")} unit="" label="Economia anual estimada" />
           </div>
         </div>
 
