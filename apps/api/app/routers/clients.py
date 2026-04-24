@@ -19,7 +19,7 @@ TOKEN_TTL_DAYS = 90
 class ClientIn(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
     phone: str = Field(..., pattern=r"^\d{10,13}$")
-    email: str | None = Field(None, max_length=255)
+    email: str = Field(..., min_length=5, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     cpf_cnpj: str | None = Field(None, pattern=r"^\d{11}$|^\d{14}$")
     # Admin pode atribuir o vendedor; seller ignora e recebe o próprio id.
     seller_id: str | None = None

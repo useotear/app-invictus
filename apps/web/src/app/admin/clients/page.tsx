@@ -96,7 +96,7 @@ export default function ClientsPage() {
       const client = await api.post<{ id: string }>("/clients", {
         name: form.name,
         phone: form.phone,
-        email: form.email || null,
+        email: form.email,
         cpf_cnpj: form.cpf_cnpj || null,
         seller_id: isAdmin && form.seller_id ? form.seller_id : null,
       });
@@ -312,9 +312,10 @@ export default function ClientsPage() {
               </Field>
             </div>
 
-            <Field label="E-mail" hint="Opcional">
+            <Field label="E-mail" hint="Usado como login do cliente no app" required>
               <input
                 type="email"
+                required
                 placeholder="cliente@email.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
