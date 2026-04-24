@@ -35,7 +35,7 @@ interface ProjectDetail {
 
 function fmt(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
+  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 function fmtBRL(v: number | null | undefined) {
@@ -71,13 +71,16 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   }
 
   async function complete(phase: Phase) {
-    const preview = previewMessage(phase);
-    const ok = await dialog.confirm({
-      title: "Avançar para a próxima fase?",
-      message: `Prévia da notificação que o cliente vai receber:\n\n"${preview}"\n\nEnviado por WhatsApp e notificação push.`,
+    const today = new Date().toISOString().slice(0, 10);
+    const completedDate = await dialog.prompt({
+      title: "Data de conclusão",
+      message: `Em que dia esta fase foi concluída? (padrão: hoje)\n\n"${phase.phase_name}"`,
+      type: "date",
+      defaultValue: today,
       confirmText: "Avançar",
     });
-    if (!ok) return;
+    if (completedDate === null) return;
+    const chosenDate = completedDate || today;
 
     if (pendingAdvance.current) clearTimeout(pendingAdvance.current);
     let cancelled = false;
@@ -103,7 +106,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       pendingAdvance.current = null;
       if (cancelled) return;
       try {
-        await api.patch(`/phases/${phase.id}`, { status: "completed" });
+        await api.patch(`/phases/${phase.id}`, { status: "completed", completed_date: chosenDate });
         toast.show({ message: "Fase avançada. Cliente notificado.", tone: "success", duration: 3000 });
         reload();
       } catch (e) {
