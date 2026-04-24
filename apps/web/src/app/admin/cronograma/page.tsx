@@ -12,6 +12,7 @@ interface QueueItem {
   client: { id: string; name: string; phone: string };
   address: string | null;
   location_link: string | null;
+  installation_notes: string | null;
   system_size_kwp: number | null;
   current_phase: number;
   kit_arrival_date: string;
@@ -154,6 +155,16 @@ export default function CronogramaPage() {
                     </div>
                     {item.address && (
                       <p className="text-xs text-slate-600 mt-2">📍 {item.address}</p>
+                    )}
+                    {item.installation_notes && (
+                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p className="text-[10px] font-semibold tracking-wider text-amber-800 uppercase">
+                          Necessidades da obra
+                        </p>
+                        <p className="text-xs text-amber-900 whitespace-pre-line mt-0.5">
+                          {item.installation_notes}
+                        </p>
+                      </div>
                     )}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-600">
                       <span>Kit entregue: <b>{fmtDate(item.kit_arrival_date)}</b></span>

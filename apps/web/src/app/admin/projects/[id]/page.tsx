@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Phase } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
+import { InstallationNotesCard } from "@/components/InstallationNotesCard";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
 
@@ -23,6 +24,7 @@ interface ProjectDetail {
   id: string;
   address: string | null;
   location_link: string | null;
+  installation_notes: string | null;
   system_size_kwp: number | null;
   contract_value: number | null;
   paid_amount: number | null;
@@ -230,6 +232,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <span className="text-xs font-semibold text-invictus">{pct}% pago</span>
           </div>
         </div>
+
+        <InstallationNotesCard
+          projectId={params.id}
+          initial={p.installation_notes ?? ""}
+          onSaved={(v) => setP({ ...p, installation_notes: v })}
+        />
 
         <ProjectDocuments projectId={params.id} />
 

@@ -22,7 +22,7 @@ def installations_queue(user: AdminUser = Depends(require_admin)):
     """
     # Busca todos os projetos da empresa que estão na janela de instalação
     projects_q = db.table("projects").select(
-        "id,current_phase,address,location_link,system_size_kwp,created_at,seller_id,"
+        "id,current_phase,address,location_link,installation_notes,system_size_kwp,created_at,seller_id,"
         "client:clients(id,name,phone),"
         "phases:project_phases(phase_number,status,scheduled_date,completed_date)"
     ).eq("company_id", user.company_id).lt("current_phase", INSTALL_DONE_PHASE + 1)
@@ -52,6 +52,7 @@ def installations_queue(user: AdminUser = Depends(require_admin)):
             "client": p["client"],
             "address": p.get("address"),
             "location_link": p.get("location_link"),
+            "installation_notes": p.get("installation_notes"),
             "system_size_kwp": p.get("system_size_kwp"),
             "current_phase": p["current_phase"],
             "kit_arrival_date": kit_arrival,
