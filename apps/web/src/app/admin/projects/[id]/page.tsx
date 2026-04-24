@@ -201,17 +201,17 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <button onClick={updatePayment} className="text-xs text-invictus hover:underline">editar</button>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] text-slate-500 uppercase">Contrato</p>
-              <p className="font-bold text-invictus-deep">{fmtBRL(p.contract_value)}</p>
+              <p className="font-bold text-invictus-deep text-sm sm:text-base tabular-nums truncate">{fmtBRL(p.contract_value)}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] text-slate-500 uppercase">Pago</p>
-              <p className="font-bold text-emerald-600">{fmtBRL(p.paid_amount)}</p>
+              <p className="font-bold text-emerald-600 text-sm sm:text-base tabular-nums truncate">{fmtBRL(p.paid_amount)}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] text-slate-500 uppercase">Método</p>
-              <p className="font-bold text-invictus-deep capitalize">{p.payment_method ?? "—"}</p>
+              <p className="font-bold text-invictus-deep capitalize text-sm sm:text-base truncate">{p.payment_method ?? "—"}</p>
             </div>
           </div>
           <div className="mt-3 flex items-center gap-2">
