@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -91,6 +91,19 @@ async def update_phase(
         next_phase = min(phase["phase_number"] + 1, 12)
         db.table("projects").update({"current_phase": next_phase}) \
             .eq("id", phase["project_id"]).execute()
+
+        # Quando "Kit entregue" (fase 4) é concluído, sugere data de instalação (+7 dias)
+        # em "Instalação agendada" (fase 8), a menos que já esteja preenchida.
+        if phase["phase_number"] == 4:
+            kit_date = payload.completed_date or date.today()
+            install_phase = db.table("project_phases").select("id,scheduled_date") \
+                .eq("project_id", phase["project_id"]).eq("phase_number", 8) \
+                .single().execute().data
+            if install_phase and not install_phase.get("scheduled_date"):
+                new_sched = (kit_date + timedelta(days=7)).isoformat()
+                db.table("project_phases").update({"scheduled_date": new_sched}) \
+                    .eq("id", install_phase["id"]).execute()
+
         bg.add_task(
             dispatch_phase_notifications,
             phase["project_id"], phase["phase_number"], "completed",

@@ -137,6 +137,11 @@ export default function ClienteProjeto({ params }: { params: { id: string } }) {
                 })}
               </p>
             )}
+            {nextPhase.phase_number === 8 && nextPhase.scheduled_date && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                ⚠️ A data poderá sofrer alterações, você será avisado.
+              </p>
+            )}
             {nextPhase.notes && (
               <p className="text-xs text-slate-500 mt-1">{nextPhase.notes}</p>
             )}

@@ -219,7 +219,14 @@ export default function ClienteDashboard() {
             </p>
             <p className="text-lg font-bold text-invictus mt-0.5">{nextPhase.phase_name}</p>
             {nextPhase.scheduled_date ? (
-              <p className="text-xs text-slate-600 mt-1">Agendado para {fmtDate(nextPhase.scheduled_date)}.</p>
+              <>
+                <p className="text-xs text-slate-600 mt-1">Agendado para {fmtDate(nextPhase.scheduled_date)}.</p>
+                {nextPhase.phase_number === 8 && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                    ⚠️ A data poderá sofrer alterações, você será avisado.
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-xs text-slate-500 mt-1">Aguardando data de agendamento.</p>
             )}
