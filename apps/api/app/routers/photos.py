@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
+from ..permissions import can_upload_install_photo, sees_all_clients
 
 router = APIRouter(prefix="/projects/{project_id}/photos", tags=["photos"])
 
@@ -46,7 +47,7 @@ def _assert_project_access(project_id: str, user: AdminUser) -> None:
         .eq("id", project_id).single().execute().data
     if not row or row["company_id"] != user.company_id:
         raise HTTPException(404, "Projeto não encontrado")
-    if user.role == "seller" and row.get("seller_id") != user.user_id:
+    if not sees_all_clients(user.role) and row.get("seller_id") != user.user_id:
         raise HTTPException(404, "Projeto não encontrado")
 
 
@@ -59,6 +60,9 @@ async def upload_photo(
     user: AdminUser = Depends(require_admin),
 ):
     _assert_project_access(project_id, user)
+
+    if not can_upload_install_photo(user.role):
+        raise HTTPException(403, "Perfil sem permissão pra anexar fotos da instalação")
 
     if category not in ALL_CATEGORIES:
         raise HTTPException(400, f"Categoria inválida. Use: {sorted(ALL_CATEGORIES)}")
@@ -121,6 +125,8 @@ def signed_url(photo_id: str, project_id: str, user: AdminUser = Depends(require
 @router.delete("/{photo_id}")
 def delete_photo(photo_id: str, project_id: str, user: AdminUser = Depends(require_admin)):
     _assert_project_access(project_id, user)
+    if not can_upload_install_photo(user.role):
+        raise HTTPException(403, "Perfil sem permissão")
     ph = db.table("project_photos").select("*") \
         .eq("id", photo_id).eq("project_id", project_id).single().execute().data
     if not ph:

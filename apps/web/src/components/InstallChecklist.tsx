@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_URL, supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ToastProvider";
 import { useDialog } from "@/components/DialogProvider";
+import { canUploadInstallPhoto, useMe } from "@/lib/useMe";
 
 export const REQUIRED_CATEGORIES = ["grid_entry", "inverter", "seal", "panels"] as const;
 export type Category = typeof REQUIRED_CATEGORIES[number];
@@ -53,6 +54,8 @@ export function InstallChecklist({
   const toast = useToast();
   const dialog = useDialog();
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const { me } = useMe();
+  const mayWrite = canUploadInstallPhoto(me?.role);
 
   async function load() {
     const { data } = await supabase.auth.getSession();
@@ -202,14 +205,16 @@ export function InstallChecklist({
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">{LABELS[cat].hint}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => inputRefs.current[cat]?.click()}
-                  disabled={uploading === cat}
-                  className="shrink-0 text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition disabled:opacity-60"
-                >
-                  {uploading === cat ? "Enviando…" : "+ Foto"}
-                </button>
+                {mayWrite && (
+                  <button
+                    type="button"
+                    onClick={() => inputRefs.current[cat]?.click()}
+                    disabled={uploading === cat}
+                    className="shrink-0 text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition disabled:opacity-60"
+                  >
+                    {uploading === cat ? "Enviando…" : "+ Foto"}
+                  </button>
+                )}
                 <input
                   ref={(el) => { inputRefs.current[cat] = el; }}
                   type="file"
@@ -233,13 +238,15 @@ export function InstallChecklist({
                       >
                         🖼️ {ph.photo_url.split("/").pop()}
                       </button>
-                      <button
-                        onClick={() => remove(ph.id)}
-                        className="text-[11px] text-slate-400 hover:text-red-600"
-                        title="Remover"
-                      >
-                        ✕
-                      </button>
+                      {mayWrite && (
+                        <button
+                          onClick={() => remove(ph.id)}
+                          className="text-[11px] text-slate-400 hover:text-red-600"
+                          title="Remover"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

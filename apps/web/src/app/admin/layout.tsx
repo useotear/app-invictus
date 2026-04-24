@@ -10,10 +10,16 @@ import { useMe } from "@/lib/useMe";
 function RoleBadge() {
   const { me } = useMe();
   if (!me) return null;
-  const label = me.role === "admin" ? "Admin" : "Vendedor";
+  const labels: Record<string, string> = {
+    admin: "Admin",
+    seller: "Vendedor",
+    homologation: "Homologação",
+    installer: "Instalação",
+    scheduler: "Agendador",
+  };
   return (
     <span className="text-[10px] font-semibold tracking-wider uppercase bg-invictus-accent/20 text-invictus-accent px-2 py-1 rounded-full">
-      {label}
+      {labels[me.role] ?? me.role}
     </span>
   );
 }

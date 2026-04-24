@@ -21,14 +21,12 @@ def installations_queue(user: AdminUser = Depends(require_admin)):
     A equipe deve respeitar essa ordem: a UI só libera a marcação do #1.
     """
     # Busca todos os projetos da empresa que estão na janela de instalação
+    # Cronograma é geral — todos os perfis veem a agenda completa da empresa.
     projects_q = db.table("projects").select(
         "id,current_phase,address,location_link,installation_notes,system_size_kwp,created_at,seller_id,"
         "client:clients(id,name,phone),"
         "phases:project_phases(phase_number,status,scheduled_date,completed_date)"
     ).eq("company_id", user.company_id).lt("current_phase", INSTALL_DONE_PHASE + 1)
-
-    if user.role == "seller":
-        projects_q = projects_q.eq("seller_id", user.user_id)
 
     rows = projects_q.execute().data or []
 

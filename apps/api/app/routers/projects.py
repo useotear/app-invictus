@@ -5,6 +5,7 @@ from slowapi.util import get_remote_address
 
 from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
+from ..permissions import can_create_client, can_edit_project, can_send_reschedule_notice, sees_all_clients
 from ..services.webpush import send_push
 from ..services.whatsapp import send_whatsapp
 
@@ -52,7 +53,7 @@ def _assert_project_access(project_id: str, user: AdminUser) -> dict:
         .eq("id", project_id).single().execute().data
     if not row or row["company_id"] != user.company_id:
         raise HTTPException(404, "Projeto não encontrado")
-    if user.role == "seller" and row.get("seller_id") != user.user_id:
+    if not sees_all_clients(user.role) and row.get("seller_id") != user.user_id:
         raise HTTPException(404, "Projeto não encontrado")
     return row
 
@@ -75,6 +76,8 @@ def _validate_payment_method(method: str | None) -> None:
 
 @router.post("")
 def create_project(payload: ProjectIn, user: AdminUser = Depends(require_admin)):
+    if not can_edit_project(user.role):
+        raise HTTPException(403, "Perfil sem permissão pra criar projetos")
     client = _assert_client_access(payload.client_id, user)
     _validate_payment_method(payload.payment_method)
     seller_id = _resolve_seller_id(user, payload.seller_id) or client.get("seller_id")
@@ -94,7 +97,7 @@ def list_projects(user: AdminUser = Depends(require_admin)):
         "client:clients(id,name,phone,email),"
         "seller:users!projects_seller_id_fkey(id,name)"
     ).eq("company_id", user.company_id)
-    if user.role == "seller":
+    if not sees_all_clients(user.role):
         q = q.eq("seller_id", user.user_id)
     return q.order("created_at", desc=True).execute().data
 
@@ -123,6 +126,15 @@ def update_project(
     user: AdminUser = Depends(require_admin),
 ):
     _assert_project_access(project_id, user)
+    # installation_notes pode ser editado por quem gerencia a obra (admin/scheduler/installer).
+    # Outras alterações exigem can_edit_project.
+    only_notes = set(payload.model_dump(exclude_none=True).keys()) <= {"installation_notes"}
+    allowed_notes_roles = {"admin", "seller", "scheduler", "installer"}
+    if only_notes:
+        if user.role not in allowed_notes_roles:
+            raise HTTPException(403, "Perfil sem permissão")
+    elif not can_edit_project(user.role):
+        raise HTTPException(403, "Perfil sem permissão pra editar projeto")
     _validate_payment_method(payload.payment_method)
     data = payload.model_dump(exclude_none=True)
     if not data:
@@ -144,6 +156,8 @@ async def reschedule_notice(
     user: AdminUser = Depends(require_admin),
 ):
     """Avisa o cliente sobre atraso/reagendamento via WhatsApp + push."""
+    if not can_send_reschedule_notice(user.role):
+        raise HTTPException(403, "Perfil sem permissão pra enviar aviso")
     project = _assert_project_access(project_id, user)
     client = db.table("clients").select("id,name,phone,access_token,auth_user_id") \
         .eq("id", project["client_id"]).single().execute().data

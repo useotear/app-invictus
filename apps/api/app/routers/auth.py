@@ -55,9 +55,13 @@ def list_team(user: AdminUser = Depends(require_admin)):
         .order("name").execute().data
 
 
+VALID_ROLES = ("admin", "seller", "homologation", "installer", "scheduler")
+
+
 class TeamMemberUpdate(BaseModel):
     is_install_manager: bool | None = None
     phone: str | None = Field(None, pattern=r"^\d{10,13}$|^$")
+    role: str | None = None
 
 
 @router.patch("/users/{user_id}")
@@ -65,7 +69,7 @@ def update_team_member(
     user_id: str, payload: TeamMemberUpdate,
     user: AdminUser = Depends(require_admin),
 ):
-    """Admin edita membros do time (flag install_manager, phone)."""
+    """Admin edita membros do time (role, flag install_manager, phone)."""
     if user.role != "admin":
         raise HTTPException(403, "Apenas admin")
     target = db.table("users").select("company_id") \
@@ -76,6 +80,8 @@ def update_team_member(
     update = payload.model_dump(exclude_none=True)
     if "phone" in update:
         update["phone"] = update["phone"] or None
+    if "role" in update and update["role"] not in VALID_ROLES:
+        raise HTTPException(400, f"role inválido. Use: {VALID_ROLES}")
     if not update:
         raise HTTPException(400, "Nada para atualizar")
     db.table("users").update(update).eq("id", user_id).execute()

@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 from ..db import db
 from ..config import settings
 from ..deps import AdminUser, log_audit, require_admin
+from ..permissions import can_create_client, sees_all_clients
 from ..services.whatsapp import send_whatsapp
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -32,12 +33,12 @@ def _new_token_with_expiry() -> tuple[str, str]:
 
 
 def _load_client_for(user: AdminUser, client_id: str, *, columns: str) -> dict:
-    """Carrega cliente garantindo que user tem acesso (admin ou dono)."""
+    """Carrega cliente garantindo que user tem acesso."""
     r = db.table("clients").select(f"{columns},company_id,seller_id") \
         .eq("id", client_id).single().execute().data
     if not r or r["company_id"] != user.company_id:
         raise HTTPException(404)
-    if user.role == "seller" and r.get("seller_id") != user.user_id:
+    if not sees_all_clients(user.role) and r.get("seller_id") != user.user_id:
         raise HTTPException(404)  # 404 propositalmente pra não vazar existência
     return r
 
@@ -59,6 +60,8 @@ def create_client(
     payload: ClientIn,
     user: AdminUser = Depends(require_admin),
 ):
+    if not can_create_client(user.role):
+        raise HTTPException(403, "Perfil sem permissão pra cadastrar cliente")
     seller_id = _resolve_seller_id(user, payload.seller_id)
     token, expires_at = _new_token_with_expiry()
     data = payload.model_dump(exclude={"seller_id"}) | {
@@ -84,7 +87,7 @@ def list_clients(user: AdminUser = Depends(require_admin)):
         .select("id,name,phone,email,cpf_cnpj,access_token_expires_at,created_at,seller_id,"
                 "seller:users!clients_seller_id_fkey(id,name)") \
         .eq("company_id", user.company_id)
-    if user.role == "seller":
+    if not sees_all_clients(user.role):
         q = q.eq("seller_id", user.user_id)
     return q.order("created_at", desc=True).execute().data
 

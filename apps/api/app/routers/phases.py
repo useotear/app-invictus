@@ -6,6 +6,7 @@ from slowapi.util import get_remote_address
 
 from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
+from ..permissions import can_edit_phase
 from ..services.notifications import dispatch_phase_notifications
 
 router = APIRouter(prefix="/phases", tags=["phases"])
@@ -34,6 +35,12 @@ async def update_phase(
         raise HTTPException(404)
     if user.role == "seller" and phase["project"].get("seller_id") != user.user_id:
         raise HTTPException(404)
+
+    if not can_edit_phase(user.role, phase["phase_number"]):
+        raise HTTPException(
+            403,
+            f"Seu perfil ({user.role}) não tem permissão pra editar esta fase.",
+        )
 
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
         raise HTTPException(400, "status inválido")

@@ -10,6 +10,7 @@ import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist"
 import { ScheduleNoticeCard } from "@/components/ScheduleNoticeCard";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
+import { canEditPhase, canEditProject, canSendRescheduleNotice, useMe } from "@/lib/useMe";
 
 const PAYMENT_METHODS = [
   { value: "pix", label: "Pix" },
@@ -59,6 +60,9 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const dialog = useDialog();
   const toast = useToast();
   const pendingAdvance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { me } = useMe();
+  const canAdvanceCurrent = !!p && canEditPhase(me?.role, p.current_phase);
+  const canNotice = canSendRescheduleNotice(me?.role);
 
   const reload = () => api.get<ProjectDetail>(`/projects/${params.id}`).then(setP);
   useEffect(() => { reload(); }, [params.id]);
@@ -212,7 +216,9 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         <div className="bg-white rounded-2xl shadow-card p-5">
           <div className="flex items-start justify-between mb-3">
             <h3 className="font-bold text-invictus">Pagamento</h3>
-            <button onClick={updatePayment} className="text-xs text-invictus hover:underline">editar</button>
+            {canEditProject(me?.role) && (
+              <button onClick={updatePayment} className="text-xs text-invictus hover:underline">editar</button>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="min-w-0">
@@ -248,11 +254,13 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
         )}
 
-        <ScheduleNoticeCard
-          projectId={params.id}
-          clientName={p.client.name}
-          currentScheduledDate={p.phases.find((ph) => ph.phase_number === 8)?.scheduled_date ?? null}
-        />
+        {canNotice && (
+          <ScheduleNoticeCard
+            projectId={params.id}
+            clientName={p.client.name}
+            currentScheduledDate={p.phases.find((ph) => ph.phase_number === 8)?.scheduled_date ?? null}
+          />
+        )}
 
         {currentPhase && (
           <div className="bg-invictus-deep text-white rounded-2xl shadow-card p-5">
@@ -260,7 +268,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               Fase atual ({p.current_phase}/{TOTAL_PHASES})
             </p>
             <h2 className="text-2xl font-bold mt-1">{currentPhase.phase_name}</h2>
-            {nextPhaseNumber <= TOTAL_PHASES && (() => {
+            {nextPhaseNumber <= TOTAL_PHASES && canAdvanceCurrent && (() => {
               const blockedByChecklist = p.current_phase === 9 && checklist !== null && !checklist.complete;
               return (
                 <>
@@ -283,6 +291,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 </>
               );
             })()}
+            {nextPhaseNumber <= TOTAL_PHASES && !canAdvanceCurrent && me && (
+              <p className="text-[11px] text-white/70 mt-3">
+                🔒 Seu perfil ({me.role}) não pode avançar esta fase.
+              </p>
+            )}
           </div>
         )}
 
@@ -318,7 +331,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                                 : "Sem data — toque para agendar"}
                       </p>
                     </div>
-                    {ph.status !== "completed" && (
+                    {ph.status !== "completed" && canEditPhase(me?.role, ph.phase_number) && (
                       <button
                         onClick={() => schedule(ph)}
                         className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition"

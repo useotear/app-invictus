@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
-import { useMe } from "@/lib/useMe";
+import { canCreateClient, useMe } from "@/lib/useMe";
 
 interface Client {
   id: string;
@@ -81,7 +81,8 @@ export default function ClientsPage() {
   const [busy, setBusy] = useState(false);
   const dialog = useDialog();
   const toast = useToast();
-  const { isAdmin } = useMe();
+  const { isAdmin, me } = useMe();
+  const mayCreate = canCreateClient(me?.role);
 
   const reload = () => api.get<Client[]>(`/clients`).then(setClients).catch(() => {});
 
@@ -277,6 +278,7 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-8">
+      {mayCreate && (
       <section className="bg-white rounded-2xl shadow-card p-5 sm:p-6">
         <h2 className="font-bold text-lg text-invictus-deep mb-1">Novo cliente</h2>
         <p className="text-xs text-slate-500 mb-5">
@@ -487,6 +489,7 @@ export default function ClientsPage() {
           </p>
         </form>
       </section>
+      )}
 
       <section>
         <h2 className="font-bold text-lg mb-3">Clientes cadastrados</h2>

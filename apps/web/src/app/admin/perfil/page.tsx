@@ -5,11 +5,21 @@ import { api } from "@/lib/api";
 import { useMe, clearMeCache } from "@/lib/useMe";
 import { useToast } from "@/components/ToastProvider";
 
+type Role = "admin" | "seller" | "homologation" | "installer" | "scheduler";
+
+const ROLE_LABELS: Record<Role, string> = {
+  admin: "Admin",
+  seller: "Vendedor",
+  homologation: "Homologação",
+  installer: "Instalação",
+  scheduler: "Agendador",
+};
+
 interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "seller";
+  role: Role;
   phone: string | null;
   is_install_manager: boolean;
 }
@@ -58,6 +68,20 @@ export default function PerfilPage() {
         tone: "success",
         duration: 2500,
       });
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
+
+  async function setRole(member: TeamMember, role: Role) {
+    try {
+      await api.patch(`/users/${member.id}`, { role });
+      setTeam((t) => t?.map((m) => (m.id === member.id ? { ...m, role } : m)) ?? null);
+      toast.show({ message: `Perfil atualizado: ${ROLE_LABELS[role]}`, tone: "success", duration: 2500 });
     } catch (e) {
       toast.show({
         message: e instanceof Error ? e.message : "Erro",
@@ -141,6 +165,7 @@ export default function PerfilPage() {
                   member={m}
                   onToggle={(flag) => toggleManager(m, flag)}
                   onSavePhone={(p) => saveMemberPhone(m, p)}
+                  onSetRole={(r) => setRole(m, r)}
                 />
               ))}
             </ul>
@@ -155,10 +180,12 @@ function TeamRow({
   member,
   onToggle,
   onSavePhone,
+  onSetRole,
 }: {
   member: TeamMember;
   onToggle: (flag: boolean) => void;
   onSavePhone: (phone: string) => void;
+  onSetRole: (role: Role) => void;
 }) {
   const [phone, setPhone] = useState(member.phone ?? "");
   const dirty = phone !== (member.phone ?? "");
@@ -167,9 +194,7 @@ function TeamRow({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <p className="font-semibold text-invictus-deep truncate">{member.name}</p>
-          <p className="text-xs text-slate-500">
-            {member.email} · {member.role === "admin" ? "Admin" : "Vendedor"}
-          </p>
+          <p className="text-xs text-slate-500">{member.email}</p>
         </div>
         <label className="text-xs flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -178,17 +203,26 @@ function TeamRow({
             checked={member.is_install_manager}
             onChange={(e) => onToggle(e.target.checked)}
           />
-          Recebe alertas de instalação
+          Alertas de instalação
         </label>
       </div>
-      <div className="flex gap-2 mt-2">
+      <div className="flex flex-wrap gap-2 mt-2 items-center">
+        <select
+          value={member.role}
+          onChange={(e) => onSetRole(e.target.value as Role)}
+          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-invictus"
+        >
+          {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
         <input
           inputMode="numeric"
           placeholder="Telefone (55DDD...)"
           pattern="\d{10,13}"
           value={phone}
           onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-          className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-invictus"
+          className="flex-1 min-w-[160px] border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-invictus"
         />
         <button
           onClick={() => onSavePhone(phone)}
