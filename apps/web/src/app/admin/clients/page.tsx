@@ -201,6 +201,53 @@ export default function ClientsPage() {
     return { text: `expira em ${days}d`, tone: days < 14 ? "warn" : "ok" };
   }
 
+  async function createClientAccess(clientId: string, clientName: string) {
+    const ok = await dialog.confirm({
+      title: "Gerar acesso (login/senha)",
+      message: `Será gerada uma senha provisória para ${clientName}. Se a conta já existe, a senha atual será substituída.`,
+      confirmText: "Gerar",
+    });
+    if (!ok) return;
+    try {
+      const r = await api.post<{ email: string; password: string; login_url: string }>(
+        `/clients/${clientId}/create-access`, {},
+      );
+      const msg =
+        `🔗 ${r.login_url}\n` +
+        `📧 E-mail: ${r.email}\n` +
+        `🔑 Senha: ${r.password}`;
+      await navigator.clipboard.writeText(msg).catch(() => {});
+      const send = await dialog.confirm({
+        title: "Credenciais geradas e copiadas",
+        message:
+          `${msg}\n\nEnviar agora ao cliente pelo WhatsApp?`,
+        confirmText: "Enviar por WhatsApp",
+        cancelText: "Depois",
+      });
+      if (send) {
+        try {
+          await api.post(`/clients/${clientId}/send-credentials`, {
+            email: r.email,
+            password: r.password,
+          });
+          toast.show({ message: "Credenciais enviadas pelo WhatsApp.", tone: "success" });
+        } catch (e) {
+          toast.show({
+            message: "Falha ao enviar: " + (e instanceof Error ? e.message : "erro"),
+            tone: "error",
+            duration: 6000,
+          });
+        }
+      }
+    } catch (e: unknown) {
+      await dialog.alert({
+        title: "Erro",
+        message: e instanceof Error ? e.message : "Falha ao gerar acesso",
+        tone: "error",
+      });
+    }
+  }
+
   async function sendWhatsappLink(clientId: string) {
     const ok = await dialog.confirm({
       title: "Enviar link por WhatsApp",
@@ -443,6 +490,9 @@ export default function ClientsPage() {
                     </button>
                     <button onClick={() => rotateLink(c.id)} className="text-xs px-3 py-1.5 border border-red-400 text-red-600 rounded hover:bg-red-500 hover:text-white transition">
                       🔄 Rotacionar
+                    </button>
+                    <button onClick={() => createClientAccess(c.id, c.name)} className="text-xs px-3 py-1.5 border border-invictus-deep text-invictus-deep rounded hover:bg-invictus-deep hover:text-white transition">
+                      🔐 Gerar acesso
                     </button>
                     {(() => {
                       const e = expiryLabel(c.access_token_expires_at);

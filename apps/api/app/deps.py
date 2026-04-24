@@ -14,6 +14,15 @@ class AdminUser:
         self.role = role
 
 
+class ClientUser:
+    def __init__(self, user_id: str, client_id: str, company_id: str, email: str | None, must_change_password: bool):
+        self.user_id = user_id
+        self.client_id = client_id
+        self.company_id = company_id
+        self.email = email
+        self.must_change_password = must_change_password
+
+
 _jwks_client: PyJWKClient | None = None
 
 
@@ -78,6 +87,29 @@ def require_admin(authorization: Annotated[str | None, Header()] = None) -> Admi
         email=row["email"],
         company_id=row["company_id"],
         role=row["role"],
+    )
+
+
+def require_client(authorization: Annotated[str | None, Header()] = None) -> ClientUser:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Authorization header ausente")
+    token = authorization.split(" ", 1)[1].strip()
+    claims = _decode_supabase_jwt(token)
+    user_id = claims.get("sub")
+    if not user_id:
+        raise HTTPException(401, "Token sem sub")
+
+    rows = db.table("clients").select("id,company_id,email,must_change_password") \
+        .eq("auth_user_id", user_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(403, "Cliente não autorizado")
+    row = rows[0]
+    return ClientUser(
+        user_id=user_id,
+        client_id=row["id"],
+        company_id=row["company_id"],
+        email=row.get("email"),
+        must_change_password=row.get("must_change_password", False),
     )
 
 

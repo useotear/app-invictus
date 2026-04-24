@@ -103,7 +103,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             </div>
             <div className="p-5 space-y-4">
               {req.opts.message && (
-                <p className="text-sm text-slate-600">{req.opts.message}</p>
+                <p className="text-sm text-slate-600 whitespace-pre-line break-words">{req.opts.message}</p>
               )}
 
               {req.kind === "prompt" && req.opts.type === "select" && (

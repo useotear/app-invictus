@@ -142,6 +142,92 @@ async def send_portal_link(
         raise HTTPException(502, f"Falha ao enviar: {e}")
 
 
+def _generate_password() -> str:
+    # 12 chars, url-safe (misto de letras/números/-_). Fácil de copiar no WhatsApp.
+    return secrets.token_urlsafe(9)
+
+
+@router.post("/{client_id}/create-access")
+@limiter.limit("10/minute")
+def create_client_access(
+    request: Request, client_id: str,
+    user: AdminUser = Depends(require_admin),
+):
+    """Cria conta Supabase Auth pro cliente (ou reseta senha) e retorna senha temporária."""
+    c = _load_client_for(user, client_id, columns="id,name,email,phone,auth_user_id")
+    if not c.get("email"):
+        raise HTTPException(400, "Cliente sem e-mail. Cadastre um e-mail antes de gerar acesso.")
+
+    password = _generate_password()
+
+    try:
+        if c.get("auth_user_id"):
+            # Reset de senha: o cliente já tem conta
+            db.auth.admin.update_user_by_id(
+                c["auth_user_id"],
+                {"password": password, "email_confirm": True},
+            )
+            auth_user_id = c["auth_user_id"]
+        else:
+            # Cria conta nova
+            created = db.auth.admin.create_user({
+                "email": c["email"],
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": {"client_id": c["id"], "name": c["name"]},
+            })
+            auth_user_id = created.user.id
+            db.table("clients").update({"auth_user_id": auth_user_id}).eq("id", client_id).execute()
+
+        db.table("clients").update({"must_change_password": True}).eq("id", client_id).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Falha ao criar conta: {e}")
+
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.create_access", entity_type="client", entity_id=client_id,
+    )
+    return {
+        "email": c["email"],
+        "password": password,
+        "login_url": f"{settings.portal_base_url}/cliente/login",
+    }
+
+
+class SendCredentialsIn(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/{client_id}/send-credentials")
+@limiter.limit("10/minute")
+async def send_credentials(
+    request: Request, client_id: str,
+    payload: SendCredentialsIn,
+    user: AdminUser = Depends(require_admin),
+):
+    c = _load_client_for(user, client_id, columns="name,phone")
+    login_url = f"{settings.portal_base_url}/cliente/login"
+    msg = (
+        f"Olá {c['name']}! Seu acesso ao portal Invictus Solar:\n\n"
+        f"🔗 {login_url}\n"
+        f"📧 E-mail: {payload.email}\n"
+        f"🔑 Senha: {payload.password}\n\n"
+        f"Recomendamos trocar a senha no primeiro acesso."
+    )
+    try:
+        await send_whatsapp(c["phone"], msg)
+    except Exception as e:
+        raise HTTPException(502, f"Falha ao enviar: {e}")
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.send_credentials", entity_type="client", entity_id=client_id,
+    )
+    return {"sent": True}
+
+
 @router.get("/by-token/{token}")
 @limiter.limit("30/minute")
 def get_by_token(request: Request, token: str):

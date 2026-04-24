@@ -68,8 +68,10 @@ async def dispatch_phase_notifications(
                 elif tpl["channel"] == "push":
                     subs = db.table("push_subscriptions").select("*") \
                         .eq("client_id", client["id"]).execute().data or []
+                    # Se o cliente tem conta, manda pro app autenticado; senão, link público.
+                    url = "/cliente" if client.get("auth_user_id") else f"/portal/{client['access_token']}"
                     for sub in subs:
-                        send_push(sub, title="Invictus Solar", body=message, url=f"/portal/{client['access_token']}")
+                        send_push(sub, title="Invictus Solar", body=message, url=url)
                 log["status"] = "sent"
                 log["sent_at"] = datetime.utcnow().isoformat()
             except Exception as e:
