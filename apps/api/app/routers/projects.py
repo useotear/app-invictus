@@ -4,7 +4,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..db import db
-from ..deps import AdminUser, require_admin
+from ..deps import AdminUser, log_audit, require_admin
+from ..services.webpush import send_push
+from ..services.whatsapp import send_whatsapp
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 limiter = Limiter(key_func=get_remote_address)
@@ -127,6 +129,84 @@ def update_project(
         raise HTTPException(400, "Nada para atualizar")
     r = db.table("projects").update(data).eq("id", project_id).execute()
     return r.data[0]
+
+
+class RescheduleNoticeIn(BaseModel):
+    message: str = Field(..., min_length=5, max_length=1000)
+    new_scheduled_date: str | None = None  # YYYY-MM-DD opcional — se passado, atualiza fase 8
+
+
+@router.post("/{project_id}/reschedule-notice")
+@limiter.limit("20/minute")
+async def reschedule_notice(
+    request: Request, project_id: str,
+    payload: RescheduleNoticeIn,
+    user: AdminUser = Depends(require_admin),
+):
+    """Avisa o cliente sobre atraso/reagendamento via WhatsApp + push."""
+    project = _assert_project_access(project_id, user)
+    client = db.table("clients").select("id,name,phone,access_token,auth_user_id") \
+        .eq("id", project["client_id"]).single().execute().data
+    if not client:
+        raise HTTPException(404, "Cliente não encontrado")
+
+    # Atualiza a data da fase 8 se foi pedido
+    if payload.new_scheduled_date:
+        db.table("project_phases").update({"scheduled_date": payload.new_scheduled_date}) \
+            .eq("project_id", project_id).eq("phase_number", 8).execute()
+
+    masked_phone = f"****{client['phone'][-4:]}" if client.get("phone") and len(client["phone"]) >= 4 else "****"
+
+    # WhatsApp
+    wa_ok = False
+    wa_err: str | None = None
+    try:
+        await send_whatsapp(client["phone"], payload.message)
+        wa_ok = True
+    except Exception as e:
+        wa_err = str(e)
+
+    db.table("notifications_log").insert({
+        "project_id": project_id,
+        "channel": "whatsapp",
+        "recipient_type": "client",
+        "recipient": masked_phone,
+        "message": None,
+        "status": "sent" if wa_ok else "failed",
+        "error": wa_err,
+    }).execute()
+
+    # Push — todas as subscriptions do cliente
+    subs = db.table("push_subscriptions").select("*") \
+        .eq("client_id", client["id"]).execute().data or []
+    push_url = "/cliente" if client.get("auth_user_id") else f"/portal/{client['access_token']}"
+    push_sent = 0
+    for sub in subs:
+        if send_push(sub, title="Invictus Solar", body=payload.message, url=push_url):
+            push_sent += 1
+
+    db.table("notifications_log").insert({
+        "project_id": project_id,
+        "channel": "push",
+        "recipient_type": "client",
+        "recipient": masked_phone,
+        "message": None,
+        "status": "sent" if push_sent > 0 else ("failed" if subs else "sent"),
+        "error": None if push_sent > 0 or not subs else "nenhuma subscription respondeu",
+    }).execute()
+
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="project.reschedule_notice", entity_type="project", entity_id=project_id,
+        metadata={"push_sent": push_sent, "whatsapp": wa_ok, "new_date": payload.new_scheduled_date},
+    )
+
+    return {
+        "whatsapp": wa_ok,
+        "whatsapp_error": wa_err,
+        "push_sent": push_sent,
+        "push_subscriptions": len(subs),
+    }
 
 
 @router.get("/by-client-token/{token}")

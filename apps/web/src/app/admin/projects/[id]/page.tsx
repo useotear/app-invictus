@@ -7,6 +7,7 @@ import { Phase } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { InstallationNotesCard } from "@/components/InstallationNotesCard";
 import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist";
+import { ScheduleNoticeCard } from "@/components/ScheduleNoticeCard";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
 
@@ -246,6 +247,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         {p.current_phase >= 8 && p.current_phase <= 9 && (
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
         )}
+
+        <ScheduleNoticeCard
+          projectId={params.id}
+          clientName={p.client.name}
+          currentScheduledDate={p.phases.find((ph) => ph.phase_number === 8)?.scheduled_date ?? null}
+        />
 
         {currentPhase && (
           <div className="bg-invictus-deep text-white rounded-2xl shadow-card p-5">
