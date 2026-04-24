@@ -17,6 +17,7 @@ class ProjectIn(BaseModel):
     client_id: str
     seller_id: str | None = None
     address: str | None = Field(None, max_length=500)
+    location_link: str | None = Field(None, max_length=1000)
     system_size_kwp: float | None = Field(None, ge=0, le=10000)
     contract_value: float | None = Field(None, ge=0)
     paid_amount: float = Field(0, ge=0)
@@ -25,6 +26,7 @@ class ProjectIn(BaseModel):
 
 class ProjectUpdate(BaseModel):
     address: str | None = Field(None, max_length=500)
+    location_link: str | None = Field(None, max_length=1000)
     system_size_kwp: float | None = Field(None, ge=0, le=10000)
     contract_value: float | None = Field(None, ge=0)
     paid_amount: float | None = Field(None, ge=0)
@@ -83,7 +85,7 @@ def create_project(payload: ProjectIn, user: AdminUser = Depends(require_admin))
 @router.get("")
 def list_projects(user: AdminUser = Depends(require_admin)):
     q = db.table("projects").select(
-        "id,current_phase,address,system_size_kwp,contract_value,paid_amount,payment_method,"
+        "id,current_phase,address,location_link,system_size_kwp,contract_value,paid_amount,payment_method,"
         "created_at,updated_at,installed_at,seller_id,"
         "client:clients(id,name,phone,email),"
         "seller:users!projects_seller_id_fkey(id,name)"
@@ -97,7 +99,7 @@ def list_projects(user: AdminUser = Depends(require_admin)):
 def get_project(project_id: str, user: AdminUser = Depends(require_admin)):
     _assert_project_access(project_id, user)
     r = db.table("projects").select(
-        "id,current_phase,address,system_size_kwp,contract_value,paid_amount,payment_method,"
+        "id,current_phase,address,location_link,system_size_kwp,contract_value,paid_amount,payment_method,"
         "created_at,updated_at,installed_at,seller_id,"
         "client:clients(id,name,phone,email,access_token),"
         "seller:users!projects_seller_id_fkey(id,name),"
@@ -138,7 +140,7 @@ def by_client_token(request: Request, token: str):
         raise HTTPException(410, "Link expirado — peça à equipe um novo link.")
     client.pop("access_token_expires_at", None)
     projects = db.table("projects").select(
-        "id,current_phase,address,system_size_kwp,contract_value,paid_amount,"
+        "id,current_phase,address,location_link,system_size_kwp,contract_value,paid_amount,"
         "payment_method,created_at,installed_at,"
         "phases:project_phases(*),"
         "documents:project_documents(id,name,created_at)"

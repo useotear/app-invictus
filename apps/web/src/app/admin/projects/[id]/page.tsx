@@ -22,6 +22,7 @@ const ADVANCE_DELAY_MS = 5000;
 interface ProjectDetail {
   id: string;
   address: string | null;
+  location_link: string | null;
   system_size_kwp: number | null;
   contract_value: number | null;
   paid_amount: number | null;
@@ -186,6 +187,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <Link href={`/portal/${p.client.access_token}`} className="text-invictus-accent hover:underline">
             🔗 Link do portal
           </Link>
+          {p.location_link && (
+            <a href={p.location_link} target="_blank" rel="noopener noreferrer" className="text-invictus-accent hover:underline">
+              📍 Localização
+            </a>
+          )}
           {p.seller?.name && (
             <span className="text-white/60">
               Vendedor: <b className="text-white/85">{p.seller.name}</b>

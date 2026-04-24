@@ -34,6 +34,7 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
 
 interface ProjectForm {
   address: string;
+  location_link: string;
   kwp: string;
   value: string;
   paid: string;
@@ -42,6 +43,7 @@ interface ProjectForm {
 
 const EMPTY_PROJECT: ProjectForm = {
   address: "",
+  location_link: "",
   kwp: "",
   value: "",
   paid: "",
@@ -107,6 +109,7 @@ export default function ClientsPage() {
           await api.post("/projects", {
             client_id: client.id,
             address: pf.address || null,
+            location_link: pf.location_link || null,
             system_size_kwp: pf.kwp ? Number(pf.kwp) : null,
             contract_value: pf.value ? Number(pf.value) : null,
             paid_amount: pf.paid ? Number(pf.paid) : 0,
@@ -140,6 +143,7 @@ export default function ClientsPage() {
       await api.post("/projects", {
         client_id: clientId,
         address: pf.address || null,
+        location_link: pf.location_link || null,
         system_size_kwp: pf.kwp ? Number(pf.kwp) : null,
         contract_value: pf.value ? Number(pf.value) : null,
         paid_amount: pf.paid ? Number(pf.paid) : 0,
@@ -366,6 +370,16 @@ export default function ClientsPage() {
                 />
               </Field>
 
+              <Field label="Link da localização" hint="Opcional — Google Maps, Waze ou similar. Ajuda a equipe a encontrar o endereço.">
+                <input
+                  type="url"
+                  placeholder="https://maps.google.com/..."
+                  value={form.project.location_link}
+                  onChange={(e) => setForm({ ...form, project: { ...form.project, location_link: e.target.value } })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                />
+              </Field>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Potência (kWp)">
                   <input
@@ -508,6 +522,8 @@ export default function ClientsPage() {
                     <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Novo projeto</p>
                     <input placeholder="Endereço completo" className="border rounded px-2 py-1 w-full"
                       value={pf.address} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, address: e.target.value }})} />
+                    <input type="url" placeholder="Link da localização (Google Maps) — opcional" className="border rounded px-2 py-1 w-full"
+                      value={pf.location_link} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, location_link: e.target.value }})} />
                     <div className="grid grid-cols-2 gap-2">
                       <input placeholder="kWp" type="number" step="0.01" className="border rounded px-2 py-1"
                         value={pf.kwp} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, kwp: e.target.value }})} />
