@@ -80,8 +80,8 @@ export default function CronogramaPage() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         await dialog.alert({
-          title: "Ordem FIFO bloqueada",
-          message: "Há instalações de kits mais antigos ainda pendentes. Conclua as anteriores antes.",
+          title: "Conclusão bloqueada",
+          message: e.message || "Não foi possível concluir agora.",
           tone: "error",
         });
         return;

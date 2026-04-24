@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Phase } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { InstallationNotesCard } from "@/components/InstallationNotesCard";
+import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
 
@@ -53,6 +54,7 @@ function dotColor(status: Phase["status"]) {
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const [p, setP] = useState<ProjectDetail | null>(null);
+  const [checklist, setChecklist] = useState<ChecklistState | null>(null);
   const dialog = useDialog();
   const toast = useToast();
   const pendingAdvance = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,20 +243,39 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         <ProjectDocuments projectId={params.id} />
 
+        {p.current_phase >= 8 && p.current_phase <= 9 && (
+          <InstallChecklist projectId={params.id} onChange={setChecklist} />
+        )}
+
         {currentPhase && (
           <div className="bg-invictus-deep text-white rounded-2xl shadow-card p-5">
             <p className="text-[10px] font-semibold tracking-wider text-invictus-accent uppercase">
               Fase atual ({p.current_phase}/12)
             </p>
             <h2 className="text-2xl font-bold mt-1">{currentPhase.phase_name}</h2>
-            {nextPhaseNumber <= 12 && (
-              <button
-                onClick={() => complete(currentPhase)}
-                className="w-full mt-4 py-3 bg-invictus-accent text-invictus-deep font-bold rounded-xl hover:brightness-110 transition"
-              >
-                ✓ Avançar para fase {nextPhaseNumber}
-              </button>
-            )}
+            {nextPhaseNumber <= 12 && (() => {
+              const blockedByChecklist = p.current_phase === 9 && checklist !== null && !checklist.complete;
+              return (
+                <>
+                  <button
+                    onClick={() => complete(currentPhase)}
+                    disabled={blockedByChecklist}
+                    className={`w-full mt-4 py-3 font-bold rounded-xl transition ${
+                      blockedByChecklist
+                        ? "bg-white/20 text-white/50 cursor-not-allowed"
+                        : "bg-invictus-accent text-invictus-deep hover:brightness-110"
+                    }`}
+                  >
+                    ✓ Avançar para fase {nextPhaseNumber}
+                  </button>
+                  {blockedByChecklist && (
+                    <p className="text-[11px] text-white/75 mt-2">
+                      🔒 Envie todas as fotos do checklist acima para liberar a conclusão.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 

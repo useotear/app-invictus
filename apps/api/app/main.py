@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .config import settings
-from .routers import auth, clients, projects, phases, push, maintenance, documents, celesc, me, schedule
+from .routers import auth, clients, projects, phases, push, maintenance, documents, celesc, me, schedule, photos
 
 if settings.sentry_dsn:
     import sentry_sdk
@@ -66,6 +66,7 @@ app.include_router(maintenance.router)
 app.include_router(celesc.router)
 app.include_router(me.router)
 app.include_router(schedule.router)
+app.include_router(photos.router)
 
 
 @app.get("/health")

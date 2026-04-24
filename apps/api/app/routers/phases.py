@@ -38,6 +38,27 @@ async def update_phase(
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
         raise HTTPException(400, "status inválido")
 
+    # Checklist obrigatório de fotos pra concluir a fase 9 (Instalação concluída).
+    if payload.status == "completed" and phase["phase_number"] == 9:
+        required = {"grid_entry", "inverter", "seal", "panels"}
+        labels = {
+            "grid_entry": "entrada de rede + plaquinha",
+            "inverter": "inversor e micro",
+            "seal": "selos do micro e inversor",
+            "panels": "painéis solares",
+        }
+        photos = db.table("project_photos").select("category") \
+            .eq("project_id", phase["project_id"]).eq("phase_number", 9).execute().data or []
+        have = {p["category"] for p in photos if p.get("category")}
+        missing = required - have
+        if missing:
+            miss_pt = ", ".join(labels[c] for c in sorted(missing))
+            raise HTTPException(
+                409,
+                f"Checklist de fotos incompleto. Faltam: {miss_pt}. "
+                "Suba as fotos antes de concluir a instalação.",
+            )
+
     # Regra FIFO: só pode marcar "Instalação concluída" (fase 9) depois que
     # todos os projetos com kit entregue antes já tiverem a instalação concluída.
     if payload.status == "completed" and phase["phase_number"] == 9:
