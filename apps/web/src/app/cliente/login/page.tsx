@@ -25,7 +25,7 @@ export default function ClienteLogin() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      setError(error.message);
+      setError("E-mail ou senha incorretos.");
       return;
     }
     router.replace("/cliente");
