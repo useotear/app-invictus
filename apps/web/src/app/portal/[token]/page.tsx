@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PortalRealtime } from "./realtime";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { API_URL } from "@/lib/supabase";
-import { Phase, PHASE_DESCRIPTIONS } from "@/lib/phases";
+import { Phase, PHASE_DESCRIPTIONS, TOTAL_PHASES } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -70,7 +70,7 @@ function phaseLabel(n: number) {
     1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
     4: "Kit entregue", 5: "Entrada na Celesc", 6: "Análise Técnica",
     7: "Projeto aprovado", 8: "Instalação agendada", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção",
+    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção", 13: "App de monitoramento",
   };
   return map[n] ?? "Em andamento";
 }
@@ -135,7 +135,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
 
   const primary = projects[0];
   const others = projects.slice(1);
-  const pct = Math.round((primary.current_phase / 12) * 100);
+  const pct = Math.round((primary.current_phase / TOTAL_PHASES) * 100);
   const kwp = primary.system_size_kwp ?? 0;
   // Estimativas: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh.
   // Tarifa por porte: B1 residencial (R$0,85), comercial pequeno (R$0,75), Grupo A (R$0,60).
@@ -174,7 +174,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
       >
         <div className="flex gap-1 mb-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => {
-            const segActive = i < Math.ceil((primary.current_phase / 12) * 6);
+            const segActive = i < Math.ceil((primary.current_phase / TOTAL_PHASES) * 6);
             return (
               <span
                 key={i}
@@ -185,14 +185,14 @@ export default async function Portal({ params }: { params: { token: string } }) 
             );
           })}
         </div>
-        <p className="text-xs text-white/75">Fase {primary.current_phase} de 12</p>
+        <p className="text-xs text-white/75">Fase {primary.current_phase} de {TOTAL_PHASES}</p>
         <h1 className="text-4xl font-bold mt-1 leading-tight">
           Olá, {client.name.split(" ").slice(0, 2).join(" ")}
         </h1>
         <p className="text-sm text-white/80 mt-2">
           {projects.length > 1
             ? `Você tem ${projects.length} projetos em andamento.`
-            : `Seu sistema está na fase ${primary.current_phase} de 12`}
+            : `Seu sistema está na fase ${primary.current_phase} de ${TOTAL_PHASES}`}
         </p>
       </section>
 
@@ -222,7 +222,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
                 )}
               </div>
               <span className="shrink-0 px-3 py-1 bg-invictus-accent/20 text-invictus-deep text-xs font-bold rounded-full">
-                Fase {primary.current_phase}/12
+                Fase {primary.current_phase}/{TOTAL_PHASES}
               </span>
             </div>
             <div className="mt-4">
@@ -343,7 +343,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
                   >
                     <div className="shrink-0 w-12 h-12 rounded-xl bg-invictus-accent/10 text-invictus-deep flex flex-col items-center justify-center font-bold">
                       <span className="text-lg leading-none">{p.current_phase}</span>
-                      <span className="text-[9px] opacity-80">/12</span>
+                      <span className="text-[9px] opacity-80">/{TOTAL_PHASES}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-invictus-deep truncate">

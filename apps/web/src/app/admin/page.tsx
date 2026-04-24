@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { useMe } from "@/lib/useMe";
+import { TOTAL_PHASES } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -22,7 +23,7 @@ function phaseLabel(n: number) {
     1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
     4: "Kit entregue", 5: "Entrada na Celesc", 6: "Projeto em análise",
     7: "Projeto aprovado", 8: "Instalação agendada", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção agendada",
+    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção agendada", 13: "App de monitoramento",
   };
   return map[n] ?? "—";
 }
@@ -169,7 +170,7 @@ export default function AdminHome() {
             <Link href={`/admin/projects/${p.id}`} className="flex items-center gap-4 bg-white rounded-2xl shadow-card p-4 hover:shadow-lg transition">
               <div className={`shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center text-white font-bold ${phaseTint(p.current_phase)}`}>
                 <span className="text-xl leading-none">{p.current_phase}</span>
-                <span className="text-[9px] opacity-80">/12</span>
+                <span className="text-[9px] opacity-80">/{TOTAL_PHASES}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-invictus-deep truncate">{p.client.name}</p>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Phase } from "@/lib/phases";
+import { Phase, TOTAL_PHASES } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { InstallationNotesCard } from "@/components/InstallationNotesCard";
 import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist";
@@ -257,10 +257,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         {currentPhase && (
           <div className="bg-invictus-deep text-white rounded-2xl shadow-card p-5">
             <p className="text-[10px] font-semibold tracking-wider text-invictus-accent uppercase">
-              Fase atual ({p.current_phase}/12)
+              Fase atual ({p.current_phase}/{TOTAL_PHASES})
             </p>
             <h2 className="text-2xl font-bold mt-1">{currentPhase.phase_name}</h2>
-            {nextPhaseNumber <= 12 && (() => {
+            {nextPhaseNumber <= TOTAL_PHASES && (() => {
               const blockedByChecklist = p.current_phase === 9 && checklist !== null && !checklist.complete;
               return (
                 <>

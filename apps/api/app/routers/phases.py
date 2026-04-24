@@ -109,7 +109,7 @@ async def update_phase(
         if payload.completed_date is None:
             db.table("project_phases").update({"completed_date": date.today().isoformat()}) \
                 .eq("id", phase_id).execute()
-        next_phase = min(phase["phase_number"] + 1, 12)
+        next_phase = min(phase["phase_number"] + 1, 13)
         db.table("projects").update({"current_phase": next_phase}) \
             .eq("id", phase["project_id"]).execute()
 
@@ -124,6 +124,18 @@ async def update_phase(
                 new_sched = (kit_date + timedelta(days=7)).isoformat()
                 db.table("project_phases").update({"scheduled_date": new_sched}) \
                     .eq("id", install_phase["id"]).execute()
+
+        # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído, sugere
+        # data pro app de monitoramento (fase 13) — ~1 semana depois.
+        if phase["phase_number"] == 11:
+            meter_date = payload.completed_date or date.today()
+            app_phase = db.table("project_phases").select("id,scheduled_date") \
+                .eq("project_id", phase["project_id"]).eq("phase_number", 13) \
+                .single().execute().data
+            if app_phase and not app_phase.get("scheduled_date"):
+                new_sched = (meter_date + timedelta(days=7)).isoformat()
+                db.table("project_phases").update({"scheduled_date": new_sched}) \
+                    .eq("id", app_phase["id"]).execute()
 
         bg.add_task(
             dispatch_phase_notifications,

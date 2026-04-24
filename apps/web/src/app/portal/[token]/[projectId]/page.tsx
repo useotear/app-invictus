@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Timeline } from "@/components/Timeline";
 import { API_URL } from "@/lib/supabase";
-import { Phase } from "@/lib/phases";
+import { Phase, TOTAL_PHASES } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -35,7 +35,7 @@ function phaseBadgeLabel(n: number) {
     4: "Kit entregue", 5: "Projeto na Celesc", 6: "Projeto em análise",
     7: "Projeto aprovado pela Celesc", 8: "Instalação agendada",
     9: "Instalação concluída", 10: "Troca do relógio agendada",
-    11: "Sistema ativo", 12: "Manutenção agendada",
+    11: "Sistema ativo", 12: "Manutenção agendada", 13: "App de monitoramento",
   };
   return map[n] ?? "Em andamento";
 }
@@ -81,7 +81,7 @@ export default async function PortalProject({
             <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">kWh/mês estimado</p>
           </div>
           <div className="bg-white rounded-xl shadow-card p-3">
-            <p className="text-xl font-bold text-invictus-accent">{project.current_phase}/12</p>
+            <p className="text-xl font-bold text-invictus-accent">{project.current_phase}/{TOTAL_PHASES}</p>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">fase atual</p>
           </div>
         </div>
