@@ -34,7 +34,7 @@ interface ProjectDetail {
 
 function fmt(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
 }
 
 function fmtBRL(v: number | null | undefined) {
@@ -124,8 +124,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       confirmText: "Salvar",
     });
     if (d === null) return;
-    const status = phase.status === "completed" ? phase.status : (d ? "in_progress" : "pending");
-    await api.patch(`/phases/${phase.id}`, { scheduled_date: d || null, status });
+    // Não mexe no status — só a conclusão do projeto avança fases.
+    await api.patch(`/phases/${phase.id}`, { scheduled_date: d || null });
     toast.show({
       message: d ? `Agendado para ${new Date(d).toLocaleDateString("pt-BR")}` : "Agendamento removido",
       tone: "success",
@@ -247,11 +247,13 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           </p>
           <ul className="space-y-2.5">
             {p.phases.map((ph) => {
-              const isCurrent = ph.status === "in_progress";
+              const isCurrent = ph.phase_number === p.current_phase && ph.status !== "completed";
+              const dotStatus = ph.status === "completed" ? "completed"
+                : isCurrent ? "in_progress" : "pending";
               return (
                 <li key={ph.id} className="bg-white rounded-2xl shadow-card p-4">
                   <div className="flex items-center gap-3">
-                    <span className={`shrink-0 w-3 h-3 rounded-full ${dotColor(ph.status)}`} />
+                    <span className={`shrink-0 w-3 h-3 rounded-full ${dotColor(dotStatus)}`} />
                     <div className="flex-1 min-w-0">
                       <p className={`font-semibold text-sm ${
                         ph.status === "completed" ? "text-slate-800" :
@@ -260,10 +262,15 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                         {ph.phase_number}. {ph.phase_name}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {ph.completed_date ? `✓ Concluído em ${fmt(ph.completed_date)}` :
-                         isCurrent ? "• ATUAL — clique em Avançar acima" :
-                         ph.scheduled_date ? `Previsto: ${fmt(ph.scheduled_date)}` :
-                         "Sem data — toque para agendar"}
+                        {ph.completed_date
+                          ? `✓ Concluído em ${fmt(ph.completed_date)}`
+                          : isCurrent && ph.scheduled_date
+                            ? `• ATUAL — previsto para ${fmt(ph.scheduled_date)}`
+                            : isCurrent
+                              ? "• ATUAL — clique em Avançar acima"
+                              : ph.scheduled_date
+                                ? `Previsto para ${fmt(ph.scheduled_date)}`
+                                : "Sem data — toque para agendar"}
                       </p>
                     </div>
                     {ph.status !== "completed" && (
