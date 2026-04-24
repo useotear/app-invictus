@@ -38,6 +38,36 @@ async def update_phase(
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
         raise HTTPException(400, "status inválido")
 
+    # Regra FIFO: só pode marcar "Instalação concluída" (fase 9) depois que
+    # todos os projetos com kit entregue antes já tiverem a instalação concluída.
+    if payload.status == "completed" and phase["phase_number"] == 9:
+        company_id = phase["project"]["company_id"]
+        own_kit = db.table("project_phases").select("completed_date") \
+            .eq("project_id", phase["project_id"]).eq("phase_number", 4) \
+            .single().execute().data
+        own_kit_date = own_kit and own_kit.get("completed_date")
+        if own_kit_date:
+            # Pega projetos da empresa com kit entregue antes do meu e ainda sem instalação concluída.
+            earlier_kits = db.table("project_phases").select(
+                "project_id,completed_date,project:projects!inner(company_id)"
+            ).eq("phase_number", 4).lt("completed_date", own_kit_date) \
+             .eq("project.company_id", company_id).execute().data or []
+
+            blocked: list[str] = []
+            for ek in earlier_kits:
+                pid = ek["project_id"]
+                inst = db.table("project_phases").select("status") \
+                    .eq("project_id", pid).eq("phase_number", 9).single().execute().data
+                if not inst or inst.get("status") != "completed":
+                    blocked.append(pid)
+
+            if blocked:
+                raise HTTPException(
+                    409,
+                    "Ordem FIFO: há instalações de kits mais antigos ainda pendentes. "
+                    "Conclua as anteriores antes.",
+                )
+
     update = {k: (v.isoformat() if hasattr(v, "isoformat") else v)
               for k, v in payload.model_dump(exclude_none=True).items()}
     if not update:
