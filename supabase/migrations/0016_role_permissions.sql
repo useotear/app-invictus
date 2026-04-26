@@ -5,7 +5,16 @@ alter table users drop constraint if exists users_role_check;
 alter table users add constraint users_role_check
   check (role in ('admin','seller','homologation','installer','scheduler'));
 
--- Helper já existe do 0008: current_user_role()
+-- Helpers RLS (idempotentes — recria mesmo se a 0008 não rodou).
+create or replace function current_company_id() returns uuid
+language sql stable as $$
+  select company_id from users where id = auth.uid()
+$$;
+
+create or replace function current_user_role() returns text
+language sql stable as $$
+  select role from users where id = auth.uid()
+$$;
 
 -- Roles não-seller (homologation, installer, scheduler) enxergam tudo da empresa.
 -- RLS de SELECT — sem WITH CHECK, o backend continua responsável por writes.
