@@ -5,7 +5,10 @@ exclude = ["__pycache__", ".venv", "venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501"]
+# E501: line too long (handled by line-length)
+# B008: Depends/Form/File defaults — padrão FastAPI, false positive
+# B904: raise without `from` — opcional, deixa simples nos handlers
+ignore = ["E501", "B008", "B904"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

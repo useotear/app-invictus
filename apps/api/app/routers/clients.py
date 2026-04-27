@@ -1,12 +1,13 @@
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from ..db import db
 from ..config import settings
+from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
 from ..permissions import can_create_client, sees_all_clients
 from ..services.whatsapp import send_whatsapp
@@ -28,7 +29,7 @@ class ClientIn(BaseModel):
 
 def _new_token_with_expiry() -> tuple[str, str]:
     token = secrets.token_urlsafe(24)
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=TOKEN_TTL_DAYS)).isoformat()
+    expires_at = (datetime.now(UTC) + timedelta(days=TOKEN_TTL_DAYS)).isoformat()
     return token, expires_at
 
 
@@ -239,7 +240,7 @@ def get_by_token(request: Request, token: str):
     if not r.data:
         raise HTTPException(404)
     exp = r.data.get("access_token_expires_at")
-    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(UTC):
         raise HTTPException(410, "Link expirado — peça à equipe um novo link.")
     r.data.pop("access_token_expires_at", None)
     return r.data

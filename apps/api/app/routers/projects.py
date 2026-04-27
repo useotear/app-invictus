@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -5,7 +7,7 @@ from slowapi.util import get_remote_address
 
 from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
-from ..permissions import can_create_client, can_edit_project, can_send_reschedule_notice, sees_all_clients
+from ..permissions import can_edit_project, can_send_reschedule_notice, sees_all_clients
 from ..services.webpush import send_push
 from ..services.whatsapp import send_whatsapp
 
@@ -226,13 +228,13 @@ async def reschedule_notice(
 @router.get("/by-client-token/{token}")
 @limiter.limit("60/minute")
 def by_client_token(request: Request, token: str):
-    from datetime import datetime, timezone
+    from datetime import datetime
     client = db.table("clients").select("id,name,email,phone,access_token_expires_at") \
         .eq("access_token", token).single().execute().data
     if not client:
         raise HTTPException(404, "Token inválido")
     exp = client.get("access_token_expires_at")
-    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+    if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(UTC):
         raise HTTPException(410, "Link expirado — peça à equipe um novo link.")
     client.pop("access_token_expires_at", None)
     projects = db.table("projects").select(

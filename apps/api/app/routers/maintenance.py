@@ -1,5 +1,6 @@
 """Cron job: dispara lembrete de manutenção 1 ano após instalação."""
 from datetime import date, timedelta
+
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..db import db

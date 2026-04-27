@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .config import settings
-from .routers import auth, clients, projects, phases, push, maintenance, documents, celesc, me, schedule, photos
+from .routers import auth, celesc, clients, documents, maintenance, me, phases, photos, projects, push, schedule
 
 if settings.sentry_dsn:
     import sentry_sdk

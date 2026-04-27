@@ -1,5 +1,7 @@
 import json
-from pywebpush import webpush, WebPushException
+
+from pywebpush import WebPushException, webpush
+
 from ..config import settings
 
 

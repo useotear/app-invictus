@@ -1,8 +1,9 @@
 from datetime import datetime
+
 from ..config import settings
 from ..db import db
-from .whatsapp import send_whatsapp
 from .webpush import send_push
+from .whatsapp import send_whatsapp
 
 
 def _render(template: str, *, nome: str, data: str, link: str) -> str:

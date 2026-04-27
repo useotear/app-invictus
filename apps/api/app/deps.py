@@ -1,7 +1,9 @@
 from typing import Annotated
+
 import jwt
+from fastapi import Header, HTTPException, Request
 from jwt import PyJWKClient
-from fastapi import Depends, Header, HTTPException, Request
+
 from .config import settings
 from .db import db
 

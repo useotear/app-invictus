@@ -1,5 +1,6 @@
 """Upload/list/delete de documentos de projeto via Supabase Storage."""
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+
 from ..db import db
 from ..deps import AdminUser, log_audit, require_admin
 

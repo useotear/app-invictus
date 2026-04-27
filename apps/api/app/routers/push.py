@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from ..db import db
 from ..config import settings
+from ..db import db
 
 router = APIRouter(prefix="/push", tags=["push"])
 limiter = Limiter(key_func=get_remote_address)

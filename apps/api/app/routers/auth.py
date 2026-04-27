@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
 from ..db import db
 from ..deps import AdminUser, require_admin
 

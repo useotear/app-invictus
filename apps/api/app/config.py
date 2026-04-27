@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from pydantic_settings import BaseSettings
 
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
