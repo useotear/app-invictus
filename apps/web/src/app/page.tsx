@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-invictus text-white">
       <div className="w-64 h-64 relative mb-8">
-        <Image src="/Invictus-Logo-branca.png" alt="Invictus Soluções" fill priority className="object-contain drop-shadow-[0_0_60px_rgba(255,200,33,0.25)]" />
+        <Image src="/Invictus-Logo-Letras-Brancas.png" alt="Invictus Soluções" fill priority className="object-contain drop-shadow-[0_0_60px_rgba(255,200,33,0.25)]" />
       </div>
       <p className="text-invictus-accent text-sm font-medium mb-12">A sua energia solar, acompanhada.</p>
       <div className="flex gap-2 mb-16">
