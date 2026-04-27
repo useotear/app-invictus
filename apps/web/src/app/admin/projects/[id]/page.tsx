@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Phase, TOTAL_PHASES } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
@@ -21,7 +21,6 @@ const PAYMENT_METHODS = [
   { value: "outro", label: "Outro" },
 ];
 
-const ADVANCE_DELAY_MS = 5000;
 
 interface ProjectDetail {
   id: string;
@@ -59,19 +58,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [checklist, setChecklist] = useState<ChecklistState | null>(null);
   const dialog = useDialog();
   const toast = useToast();
-  const pendingAdvance = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { me } = useMe();
   const canAdvanceCurrent = !!p && canEditPhase(me?.role, p.current_phase);
   const canNotice = canSendRescheduleNotice(me?.role);
 
   const reload = () => api.get<ProjectDetail>(`/projects/${params.id}`).then(setP);
   useEffect(() => { reload(); }, [params.id]);
-
-  useEffect(() => {
-    return () => {
-      if (pendingAdvance.current) clearTimeout(pendingAdvance.current);
-    };
-  }, []);
 
   function previewMessage(phase: Phase) {
     if (!p) return "";
@@ -91,41 +83,19 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     if (completedDate === null) return;
     const chosenDate = completedDate || today;
 
-    if (pendingAdvance.current) clearTimeout(pendingAdvance.current);
-    let cancelled = false;
-
-    toast.show({
-      message: `Avançando "${phase.phase_name}"...`,
-      tone: "info",
-      duration: ADVANCE_DELAY_MS,
-      action: {
-        label: "Desfazer",
-        onClick: () => {
-          cancelled = true;
-          if (pendingAdvance.current) {
-            clearTimeout(pendingAdvance.current);
-            pendingAdvance.current = null;
-          }
-          toast.show({ message: "Avanço cancelado. Nada foi enviado.", tone: "success", duration: 3000 });
-        },
-      },
-    });
-
-    pendingAdvance.current = setTimeout(async () => {
-      pendingAdvance.current = null;
-      if (cancelled) return;
-      try {
-        await api.patch(`/phases/${phase.id}`, { status: "completed", completed_date: chosenDate });
-        toast.show({ message: "Fase avançada. Cliente notificado.", tone: "success", duration: 3000 });
-        reload();
-      } catch (e) {
-        toast.show({
-          message: e instanceof Error ? e.message : "Falha ao avançar fase",
-          tone: "error",
-          duration: 5000,
-        });
-      }
-    }, ADVANCE_DELAY_MS);
+    // Persiste imediatamente. Sem delay de 5s — se o usuário atualizar a página
+    // durante o delay, o PATCH não rodava e parecia que não salvou.
+    try {
+      await api.patch(`/phases/${phase.id}`, { status: "completed", completed_date: chosenDate });
+      toast.show({ message: "Fase avançada. Cliente notificado.", tone: "success", duration: 3000 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Falha ao avançar fase",
+        tone: "error",
+        duration: 6000,
+      });
+    }
   }
 
   async function schedule(phase: Phase) {
