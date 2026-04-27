@@ -96,10 +96,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     <DialogCtx.Provider value={api}>
       {children}
       {req && (
-        <div className="fixed inset-0 z-50 bg-invictus-deep/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
-            <div className="bg-invictus text-white px-5 py-4">
-              <h3 className="font-bold text-lg">{req.opts.title}</h3>
+        <div className="fixed inset-0 z-50 bg-invictus-deep/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden mx-auto">
+            <div className="bg-invictus text-white px-4 sm:px-5 py-3 sm:py-4">
+              <h3 className="font-bold text-base sm:text-lg break-words">{req.opts.title}</h3>
             </div>
             <div className="p-5 space-y-4">
               {req.opts.message && (
