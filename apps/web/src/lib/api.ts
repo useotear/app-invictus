@@ -29,7 +29,24 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await r.text().catch(() => "");
     throw new ApiError(`${r.status} ${text || r.statusText}`.trim(), r.status);
   }
-  return r.json();
+  // Resposta OK mas não-JSON (ex: proxy retornou HTML) — mensagem clara em vez de SyntaxError.
+  const contentType = r.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await r.text().catch(() => "");
+    const preview = text.slice(0, 200).replace(/\s+/g, " ");
+    throw new ApiError(
+      `Resposta não-JSON da API (${contentType || "sem content-type"}): ${preview}`,
+      r.status,
+    );
+  }
+  try {
+    return await r.json();
+  } catch (e) {
+    throw new ApiError(
+      `Falha ao decodificar JSON da API: ${e instanceof Error ? e.message : "erro"}`,
+      r.status,
+    );
+  }
 }
 
 export const api = {
