@@ -24,6 +24,9 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 
+# libc6-compat necessário pro sharp (otimização de imagem do next/image)
+RUN apk add --no-cache libc6-compat
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
