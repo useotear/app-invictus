@@ -106,18 +106,13 @@ export default function AdminHome() {
           <p className="text-xs text-red-600/80">
             Verifique sua conexão e tente novamente. Se o problema continuar, avise a equipe técnica.
           </p>
-          {process.env.NODE_ENV !== "production" && (
-            <details className="text-xs">
-              <summary className="cursor-pointer text-red-700/80">Detalhes técnicos</summary>
-              <p className="mt-1 font-mono break-all">{error}</p>
-              <ul className="list-disc pl-4 mt-1">
-                <li><code>SUPABASE_JWT_SECRET</code> setado no serviço api e reiniciado.</li>
-                <li><code>ALLOWED_ORIGINS</code> inclui a URL do frontend.</li>
-                <li>Usuário existe em <code>users</code> com <code>company_id</code>.</li>
-                <li><code>{process.env.NEXT_PUBLIC_API_URL}/health</code> responde JSON.</li>
-              </ul>
-            </details>
-          )}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-red-700/80">Detalhes técnicos</summary>
+            <p className="mt-1 font-mono break-all">{error}</p>
+            <p className="mt-1 text-[11px] text-red-600/70">
+              API: <code>{process.env.NEXT_PUBLIC_API_URL}</code>
+            </p>
+          </details>
         </div>
       )}
 
