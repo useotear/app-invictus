@@ -292,7 +292,7 @@ export default function ClientsPage() {
     if (!ok) return;
     try {
       await api.post(`/clients/${clientId}/send-link`, {});
-      await dialog.alert({ title: "Enviado!", message: "Mensagem despachada ao WhatsApp." });
+      await dialog.alert({ title: "Envio na fila", message: "Mensagem sendo enviada por WhatsApp em segundo plano. Se falhar, avisamos no histórico." });
     } catch (e: unknown) {
       await dialog.alert({
         title: "Erro",

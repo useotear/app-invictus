@@ -1,7 +1,7 @@
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -197,25 +197,56 @@ def rotate_access_link(
     }
 
 
+async def _send_whatsapp_bg(
+    *, project_id: str | None, client_id: str, company_id: str,
+    actor_id: str, actor_email: str,
+    phone: str, message: str, action: str,
+) -> None:
+    """Envia WhatsApp em background — registra sucesso/falha em notifications_log."""
+    masked = f"****{phone[-4:]}" if phone and len(phone) >= 4 else "****"
+    log: dict[str, str | None] = {
+        "project_id": project_id,
+        "channel": "whatsapp",
+        "recipient_type": "client",
+        "recipient": masked,
+        "message": None,
+    }
+    try:
+        await send_whatsapp(phone, message)
+        log["status"] = "sent"
+    except Exception as e:
+        log["status"] = "failed"
+        log["error"] = str(e)
+    db.table("notifications_log").insert(log).execute()
+    db.table("audit_log").insert({
+        "company_id": company_id,
+        "actor_id": actor_id,
+        "actor_email": actor_email,
+        "action": action,
+        "entity_type": "client",
+        "entity_id": client_id,
+        "metadata": {"channel": "whatsapp", "status": log["status"], "error": log.get("error")},
+        "ip": None,
+    }).execute()
+
+
 @router.post("/{client_id}/send-link")
 @limiter.limit("10/minute")
-async def send_portal_link(
-    request: Request, client_id: str,
+def send_portal_link(
+    request: Request, client_id: str, bg: BackgroundTasks,
     user: AdminUser = Depends(require_admin),
 ):
+    """Dispara envio em background. Responde imediatamente — status real fica em notifications_log."""
     c = _load_client_for(user, client_id, columns="name,phone,access_token")
     link = f"{settings.portal_base_url}/portal/{c['access_token']}"
     msg = f"Olá {c['name']}! Acompanhe sua instalação fotovoltaica: {link}"
-    try:
-        await send_whatsapp(c["phone"], msg)
-        log_audit(
-            company_id=user.company_id, actor=user,
-            action="client.send_link", entity_type="client", entity_id=client_id,
-            metadata={"channel": "whatsapp"},
-        )
-        return {"sent": True}
-    except Exception as e:
-        raise HTTPException(502, f"Falha ao enviar: {e}")
+    bg.add_task(
+        _send_whatsapp_bg,
+        project_id=None, client_id=client_id, company_id=user.company_id,
+        actor_id=user.user_id, actor_email=user.email,
+        phone=c["phone"], message=msg, action="client.send_link",
+    )
+    return {"queued": True}
 
 
 def _generate_password() -> str:
@@ -279,9 +310,10 @@ class SendCredentialsIn(BaseModel):
 
 @router.post("/{client_id}/send-credentials")
 @limiter.limit("10/minute")
-async def send_credentials(
+def send_credentials(
     request: Request, client_id: str,
     payload: SendCredentialsIn,
+    bg: BackgroundTasks,
     user: AdminUser = Depends(require_admin),
 ):
     c = _load_client_for(user, client_id, columns="name,phone")
@@ -293,15 +325,13 @@ async def send_credentials(
         f"🔑 Senha: {payload.password}\n\n"
         f"Recomendamos trocar a senha no primeiro acesso."
     )
-    try:
-        await send_whatsapp(c["phone"], msg)
-    except Exception as e:
-        raise HTTPException(502, f"Falha ao enviar: {e}")
-    log_audit(
-        company_id=user.company_id, actor=user,
-        action="client.send_credentials", entity_type="client", entity_id=client_id,
+    bg.add_task(
+        _send_whatsapp_bg,
+        project_id=None, client_id=client_id, company_id=user.company_id,
+        actor_id=user.user_id, actor_email=user.email,
+        phone=c["phone"], message=msg, action="client.send_credentials",
     )
-    return {"sent": True}
+    return {"queued": True}
 
 
 @router.get("/by-token/{token}")
