@@ -12,8 +12,8 @@ export const PHASES = [
   { n: 9,  name: "Instalação concluída" },
   { n: 10, name: "Troca do relógio agendada" },
   { n: 11, name: "Relógio trocado / Sistema ativo" },
-  { n: 12, name: "Manutenção agendada" },
-  { n: 13, name: "App de monitoramento instalado" },
+  { n: 12, name: "App de monitoramento instalado" },
+  { n: 13, name: "Manutenção agendada" },
 ] as const;
 
 export const PHASE_DESCRIPTIONS: Record<number, string> = {
@@ -28,8 +28,8 @@ export const PHASE_DESCRIPTIONS: Record<number, string> = {
   9: "Painéis e inversor já estão no seu telhado e conectados.",
   10: "Troca do medidor pela Celesc agendada. Depois dessa etapa o sistema começa a gerar oficialmente.",
   11: "Relógio bidirecional instalado e sistema ativo. Você já está gerando sua própria energia.",
-  12: "Manutenção preventiva agendada para garantir o melhor desempenho do sistema.",
-  13: "App de monitoramento configurado no seu celular pra você acompanhar a geração em tempo real. Costuma rolar ~1 semana após o relógio estar funcionando.",
+  12: "App de monitoramento configurado no seu celular pra você acompanhar a geração em tempo real. Costuma rolar ~1 semana após o relógio estar funcionando.",
+  13: "Manutenção preventiva agendada para garantir o melhor desempenho do sistema.",
 };
 
 export type PhaseStatus = "pending" | "in_progress" | "completed";

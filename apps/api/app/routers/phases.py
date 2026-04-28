@@ -134,11 +134,11 @@ async def update_phase(
                     .eq("id", install_phase["id"]).execute()
 
         # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído, sugere
-        # data pro app de monitoramento (fase 13) — ~1 semana depois.
+        # data pro app de monitoramento (fase 12) — ~1 semana depois.
         if phase["phase_number"] == 11:
             meter_date = payload.completed_date or date.today()
             app_phase = db.table("project_phases").select("id,scheduled_date") \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 13) \
+                .eq("project_id", phase["project_id"]).eq("phase_number", 12) \
                 .single().execute().data
             if app_phase and not app_phase.get("scheduled_date"):
                 new_sched = (meter_date + timedelta(days=7)).isoformat()

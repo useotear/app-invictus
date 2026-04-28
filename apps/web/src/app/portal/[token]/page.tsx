@@ -70,7 +70,7 @@ function phaseLabel(n: number) {
     1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
     4: "Kit entregue", 5: "Entrada na Celesc", 6: "Análise Técnica",
     7: "Projeto aprovado", 8: "Instalação agendada", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "Manutenção", 13: "App de monitoramento",
+    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção",
   };
   return map[n] ?? "Em andamento";
 }

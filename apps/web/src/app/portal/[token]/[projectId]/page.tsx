@@ -35,7 +35,7 @@ function phaseBadgeLabel(n: number) {
     4: "Kit entregue", 5: "Projeto na Celesc", 6: "Projeto em análise",
     7: "Projeto aprovado pela Celesc", 8: "Instalação agendada",
     9: "Instalação concluída", 10: "Troca do relógio agendada",
-    11: "Sistema ativo", 12: "Manutenção agendada", 13: "App de monitoramento",
+    11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção agendada",
   };
   return map[n] ?? "Em andamento";
 }
