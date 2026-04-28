@@ -54,9 +54,12 @@ function dotColor(status: Phase["status"]) {
   return "bg-slate-300";
 }
 
+interface Seller { id: string; name: string; email: string; role: string }
+
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const [p, setP] = useState<ProjectDetail | null>(null);
   const [checklist, setChecklist] = useState<ChecklistState | null>(null);
+  const [sellers, setSellers] = useState<Seller[]>([]);
   const dialog = useDialog();
   const toast = useToast();
   const { me } = useMe();
@@ -65,6 +68,37 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
   const reload = () => api.get<ProjectDetail>(`/projects/${params.id}`).then(setP);
   useEffect(() => { reload(); }, [params.id]);
+  useEffect(() => {
+    if (me?.role !== "admin") return;
+    api.get<Seller[]>("/users/sellers").then(setSellers).catch(() => {});
+  }, [me?.role]);
+
+  async function changeSeller() {
+    const options = [
+      { value: "", label: "— sem vendedor —" },
+      ...sellers.map((s) => ({ value: s.id, label: s.name })),
+    ];
+    const newId = await dialog.prompt({
+      title: "Trocar vendedor",
+      message: "Escolha o vendedor responsável por este projeto.",
+      type: "select",
+      options,
+      defaultValue: p?.seller?.id ?? "",
+      confirmText: "Salvar",
+    });
+    if (newId === null) return;
+    try {
+      await api.patch(`/projects/${params.id}`, { seller_id: newId || null });
+      toast.show({ message: "Vendedor atualizado.", tone: "success", duration: 2500 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao trocar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
 
   function previewMessage(phase: Phase) {
     if (!p) return "";
@@ -207,11 +241,14 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               📍 Localização
             </a>
           )}
-          {p.seller?.name && (
-            <span className="text-white/60">
-              Vendedor: <b className="text-white/85">{p.seller.name}</b>
-            </span>
-          )}
+          <span className="text-white/60">
+            Vendedor: <b className="text-white/85">{p.seller?.name ?? "—"}</b>
+            {me?.role === "admin" && (
+              <button onClick={changeSeller} className="ml-2 text-invictus-accent hover:underline">
+                trocar
+              </button>
+            )}
+          </span>
         </div>
       </div>
 

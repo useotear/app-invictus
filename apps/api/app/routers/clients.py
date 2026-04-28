@@ -117,6 +117,13 @@ def update_client(
         raise HTTPException(400, "Nada para atualizar")
 
     db.table("clients").update(update).eq("id", client_id).execute()
+
+    # Quando admin troca o vendedor do cliente, propaga pra todos os projetos
+    # dele — os cards de projeto passam a mostrar o vendedor atual.
+    if "seller_id" in update:
+        db.table("projects").update({"seller_id": update["seller_id"]}) \
+            .eq("client_id", client_id).execute()
+
     log_audit(
         company_id=user.company_id, actor=user,
         action="client.update", entity_type="client", entity_id=client_id,

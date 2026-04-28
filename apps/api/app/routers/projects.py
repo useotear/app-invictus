@@ -38,6 +38,7 @@ class ProjectUpdate(BaseModel):
     contract_value: float | None = Field(None, ge=0)
     paid_amount: float | None = Field(None, ge=0)
     payment_method: str | None = None
+    seller_id: str | None = None
 
 
 def _assert_client_access(client_id: str, user: AdminUser) -> dict:
@@ -139,6 +140,14 @@ def update_project(
         raise HTTPException(403, "Perfil sem permissão pra editar projeto")
     _validate_payment_method(payload.payment_method)
     data = payload.model_dump(exclude_none=True)
+    if "seller_id" in data:
+        if user.role != "admin":
+            data.pop("seller_id")  # vendedor/scheduler não troca dono
+        elif data["seller_id"]:
+            owner = db.table("users").select("company_id") \
+                .eq("id", data["seller_id"]).single().execute().data
+            if not owner or owner["company_id"] != user.company_id:
+                raise HTTPException(400, "seller_id inválido")
     if not data:
         raise HTTPException(400, "Nada para atualizar")
     r = db.table("projects").update(data).eq("id", project_id).execute()
