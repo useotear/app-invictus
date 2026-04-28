@@ -1,27 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
+
+function fmtBR(iso: string) {
+  // iso = YYYY-MM-DD
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function dateClause(iso: string) {
+  return iso ? `Nova data: ${fmtBR(iso)}.` : "Entraremos em contato com a nova data assim que possível.";
+}
 
 const TEMPLATES = [
   {
     key: "rain",
     label: "Chuva / clima",
-    text: (name: string) =>
-      `Olá ${name}! Por causa das condições climáticas de hoje, precisaremos reagendar a instalação do seu sistema solar. Entraremos em contato em breve com a nova data. Obrigado pela compreensão.`,
+    text: (name: string, date: string) =>
+      `Olá ${name}! Por causa das condições climáticas de hoje, precisaremos reagendar a instalação do seu sistema solar. ${dateClause(date)} Obrigado pela compreensão.`,
   },
   {
     key: "previous_job",
     label: "Obra anterior atrasou",
-    text: (name: string) =>
-      `Olá ${name}! A obra anterior à sua teve um imprevisto e precisou se estender. Isso impacta a sua data de instalação — vamos reagendar e avisamos você com a nova data o mais rápido possível. Obrigado pela paciência.`,
+    text: (name: string, date: string) =>
+      `Olá ${name}! A obra anterior à sua teve um imprevisto e precisou se estender. ${dateClause(date)} Obrigado pela paciência.`,
   },
   {
     key: "team_delay",
     label: "Equipe atrasada",
-    text: (name: string) =>
-      `Olá ${name}! Nossa equipe está com um pequeno atraso na agenda de hoje. Assim que tivermos o novo horário, retornamos o contato.`,
+    text: (name: string, date: string) =>
+      `Olá ${name}! Nossa equipe está com um pequeno atraso na agenda de hoje. ${dateClause(date)}`,
   },
   {
     key: "custom",
@@ -41,16 +51,26 @@ export function ScheduleNoticeCard({
 }) {
   const [template, setTemplate] = useState<(typeof TEMPLATES)[number]["key"]>("rain");
   const firstName = useMemo(() => clientName.split(" ")[0] ?? "", [clientName]);
-  const [message, setMessage] = useState<string>(TEMPLATES[0].text(firstName));
+  const [message, setMessage] = useState<string>(TEMPLATES[0].text(firstName, ""));
   const [newDate, setNewDate] = useState<string>("");
+  const [touched, setTouched] = useState(false); // marca se admin editou o texto manualmente
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
   function applyTemplate(key: (typeof TEMPLATES)[number]["key"]) {
     setTemplate(key);
+    setTouched(false);
     const t = TEMPLATES.find((x) => x.key === key);
-    if (t) setMessage(t.text(firstName));
+    if (t) setMessage(t.text(firstName, newDate));
   }
+
+  // Re-renderiza a mensagem quando a data muda (a menos que admin tenha editado manualmente).
+  useEffect(() => {
+    if (touched) return;
+    if (template === "custom") return;
+    const t = TEMPLATES.find((x) => x.key === template);
+    if (t) setMessage(t.text(firstName, newDate));
+  }, [newDate, template, firstName, touched]);
 
   async function send() {
     if (message.trim().length < 5) {
@@ -124,7 +144,7 @@ export function ScheduleNoticeCard({
           <textarea
             rows={4}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => { setMessage(e.target.value); setTouched(true); }}
             placeholder="Texto que o cliente vai receber…"
             className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-invictus resize-y text-sm"
           />
