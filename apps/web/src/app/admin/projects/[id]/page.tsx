@@ -7,6 +7,7 @@ import { Phase, TOTAL_PHASES } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { InstallationNotesCard } from "@/components/InstallationNotesCard";
 import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist";
+import { PhasePhotos } from "@/components/PhasePhotos";
 import { ScheduleNoticeCard } from "@/components/ScheduleNoticeCard";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -222,6 +223,16 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         {p.current_phase >= 8 && p.current_phase <= 9 && (
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
+        )}
+
+        {p.current_phase >= 13 && (
+          <PhasePhotos
+            projectId={params.id}
+            phaseNumber={13}
+            title="Fotos da manutenção"
+            hint="Anexe fotos da visita de manutenção (estado dos painéis, inversor, fiação, etc)."
+            category="other"
+          />
         )}
 
         {canNotice && (
