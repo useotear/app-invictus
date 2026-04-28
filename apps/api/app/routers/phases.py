@@ -121,29 +121,22 @@ async def update_phase(
         db.table("projects").update({"current_phase": next_phase}) \
             .eq("id", phase["project_id"]).execute()
 
-        # Quando "Kit entregue" (fase 4) é concluído, sugere data de instalação (+7 dias)
-        # em "Instalação agendada" (fase 8), a menos que já esteja preenchida.
+        # Quando "Kit entregue" (fase 4) é concluído, agenda automaticamente a
+        # "Instalação agendada" (fase 8) pra +7 dias. Sempre sobrescreve — admin
+        # pode remarcar manualmente depois pelo botão "Remarcar".
         if phase["phase_number"] == 4:
             kit_date = payload.completed_date or date.today()
-            install_phase = db.table("project_phases").select("id,scheduled_date") \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 8) \
-                .single().execute().data
-            if install_phase and not install_phase.get("scheduled_date"):
-                new_sched = (kit_date + timedelta(days=7)).isoformat()
-                db.table("project_phases").update({"scheduled_date": new_sched}) \
-                    .eq("id", install_phase["id"]).execute()
+            new_sched = (kit_date + timedelta(days=7)).isoformat()
+            db.table("project_phases").update({"scheduled_date": new_sched}) \
+                .eq("project_id", phase["project_id"]).eq("phase_number", 8).execute()
 
-        # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído, sugere
-        # data pro app de monitoramento (fase 12) — ~1 semana depois.
+        # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído,
+        # agenda o app de monitoramento (fase 12) pra +7 dias. Sempre sobrescreve.
         if phase["phase_number"] == 11:
             meter_date = payload.completed_date or date.today()
-            app_phase = db.table("project_phases").select("id,scheduled_date") \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 12) \
-                .single().execute().data
-            if app_phase and not app_phase.get("scheduled_date"):
-                new_sched = (meter_date + timedelta(days=7)).isoformat()
-                db.table("project_phases").update({"scheduled_date": new_sched}) \
-                    .eq("id", app_phase["id"]).execute()
+            new_sched = (meter_date + timedelta(days=7)).isoformat()
+            db.table("project_phases").update({"scheduled_date": new_sched}) \
+                .eq("project_id", phase["project_id"]).eq("phase_number", 12).execute()
 
         bg.add_task(
             dispatch_phase_notifications,
