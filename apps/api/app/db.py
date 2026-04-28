@@ -1,21 +1,36 @@
-"""Supabase client + helper de retry pra erros transientes (HTTP/2 ConnectionTerminated).
+"""Supabase client com HTTP/1.1 forçado globalmente.
 
-O httpx do supabase-py negocia HTTP/2 com Supabase e a conexão é
-intermitentemente abortada (httpcore.RemoteProtocolError). Em vez de
-mexer no httpx (frágil), envolvemos as operações críticas num retry
-curto que recria o client em caso de erro de protocolo.
+O httpx do supabase-py vinha tentando HTTP/2 e a conexão era abortada
+intermitentemente (httpcore.RemoteProtocolError, ConnectionTerminated),
+fazendo PATCHes de fase falharem silenciosamente. Forçamos HTTP/1.1 em
+todos os httpx.Client criados pelo processo, antes de instanciar o
+supabase client.
 """
 
-import logging
-import time
-
-from httpcore import RemoteProtocolError as CoreProtocolError
-from httpx import RemoteProtocolError as HttpxProtocolError
+import httpx
 from supabase import Client, create_client
 
 from .config import settings
 
-_log = logging.getLogger("db")
+# Monkey-patch httpx pra desligar HTTP/2 por padrão.
+# Os sub-clients da supabase-py (postgrest, gotrue, storage) instanciam
+# httpx.Client/AsyncClient internamente; com isso herdam http2=False.
+_orig_client_init = httpx.Client.__init__
+_orig_async_init = httpx.AsyncClient.__init__
+
+
+def _client_init(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+    kwargs.setdefault("http2", False)
+    return _orig_client_init(self, *args, **kwargs)
+
+
+def _async_init(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+    kwargs.setdefault("http2", False)
+    return _orig_async_init(self, *args, **kwargs)
+
+
+httpx.Client.__init__ = _client_init  # type: ignore[method-assign]
+httpx.AsyncClient.__init__ = _async_init  # type: ignore[method-assign]
 
 
 def get_admin_client() -> Client:
@@ -24,19 +39,3 @@ def get_admin_client() -> Client:
 
 
 db: Client = get_admin_client()
-
-
-def with_retry(fn, *, attempts: int = 3, delay: float = 0.3):
-    """Roda `fn()` reciclando o client em RemoteProtocolError. Não trata 4xx/5xx normais."""
-    global db
-    last: Exception | None = None
-    for i in range(attempts):
-        try:
-            return fn()
-        except (CoreProtocolError, HttpxProtocolError) as e:
-            last = e
-            _log.warning("Supabase HTTP/2 connection terminated (try %d/%d): %s", i + 1, attempts, e)
-            db = get_admin_client()  # recicla
-            time.sleep(delay * (i + 1))
-    assert last is not None
-    raise last
