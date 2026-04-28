@@ -16,7 +16,7 @@ interface Project {
   seller: { id: string; name: string } | null;
 }
 
-type Filter = "all" | "in_progress" | "late";
+type Filter = "all" | "in_progress";
 
 function phaseLabel(n: number) {
   const map: Record<number, string> = {
@@ -55,27 +55,12 @@ export default function AdminHome() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const staleThreshold = Date.now() - 14 * 86_400_000;
     return projects.filter((p) => {
       if (q && !`${p.client.name} ${p.address ?? ""}`.toLowerCase().includes(q)) return false;
       if (filter === "in_progress" && (p.current_phase >= 11 || p.current_phase <= 0)) return false;
-      if (filter === "late") {
-        const updatedMs = p.updated_at ? new Date(p.updated_at).getTime() : 0;
-        const stale = !updatedMs || updatedMs < staleThreshold;
-        const active = p.current_phase < 11 && p.current_phase > 0;
-        if (!(stale && active)) return false;
-      }
       return true;
     });
   }, [projects, query, filter]);
-
-  const lateCount = useMemo(() => {
-    const staleThreshold = Date.now() - 14 * 86_400_000;
-    return projects.filter((p) => {
-      const updatedMs = p.updated_at ? new Date(p.updated_at).getTime() : 0;
-      return (!updatedMs || updatedMs < staleThreshold) && p.current_phase < 11 && p.current_phase > 0;
-    }).length;
-  }, [projects]);
 
   function updatedLabel(iso: string | null | undefined) {
     if (!iso) return "sem atualização";
@@ -127,7 +112,6 @@ export default function AdminHome() {
         {([
           ["all", `Todos (${projects.length})`],
           ["in_progress", "Em andamento"],
-          ["late", `Sem mexer ${lateCount ? `(${lateCount})` : ""}`.trim()],
         ] as [Filter, string][]).map(([k, label]) => (
           <button
             key={k}

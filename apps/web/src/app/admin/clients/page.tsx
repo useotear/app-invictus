@@ -11,6 +11,7 @@ interface Client {
   name: string;
   phone: string;
   email: string | null;
+  cpf_cnpj?: string | null;
   access_token_expires_at: string | null;
   seller_id: string | null;
   seller: { id: string; name: string } | null;
@@ -77,6 +78,7 @@ export default function ClientsPage() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [form, setForm] = useState<NewClientForm>(EMPTY_NEW_CLIENT);
   const [projectForm, setProjectForm] = useState<Record<string, ProjectForm>>({});
+  const [editing, setEditing] = useState<Client | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const dialog = useDialog();
@@ -273,6 +275,34 @@ export default function ClientsPage() {
         message: e instanceof Error ? e.message : "Falha ao enviar",
         tone: "error",
       });
+    }
+  }
+
+  async function saveEdit(values: {
+    name: string; phone: string; email: string; cpf_cnpj: string; seller_id: string;
+  }) {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const body: Record<string, string | null> = {
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        cpf_cnpj: values.cpf_cnpj || "",
+      };
+      if (isAdmin) body.seller_id = values.seller_id || null;
+      await api.patch(`/clients/${editing.id}`, body);
+      toast.show({ message: "Cliente atualizado.", tone: "success", duration: 2500 });
+      setEditing(null);
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 5000,
+      });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -526,6 +556,9 @@ export default function ClientsPage() {
                     <button onClick={() => createClientAccess(c.id, c.name)} className="text-xs px-3 py-1.5 border border-invictus-deep text-invictus-deep rounded hover:bg-invictus-deep hover:text-white transition">
                       🔐 Gerar acesso
                     </button>
+                    <button onClick={() => setEditing(c)} className="text-xs px-3 py-1.5 border border-slate-400 text-slate-700 rounded hover:bg-slate-100 transition">
+                      ✏️ Editar dados
+                    </button>
                     {(() => {
                       const e = expiryLabel(c.access_token_expires_at);
                       const tone = e.tone === "expired" ? "bg-red-100 text-red-700" :
@@ -576,6 +609,112 @@ export default function ClientsPage() {
           )}
         </div>
       </section>
+
+      {editing && (
+        <EditClientModal
+          client={editing}
+          sellers={sellers}
+          isAdmin={isAdmin}
+          busy={busy}
+          onSave={saveEdit}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditClientModal({
+  client, sellers, isAdmin, busy, onSave, onClose,
+}: {
+  client: Client;
+  sellers: Seller[];
+  isAdmin: boolean;
+  busy: boolean;
+  onSave: (v: { name: string; phone: string; email: string; cpf_cnpj: string; seller_id: string }) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(client.name);
+  const [phone, setPhone] = useState(client.phone);
+  const [email, setEmail] = useState(client.email ?? "");
+  const [cpf, setCpf] = useState(client.cpf_cnpj ?? "");
+  const [sellerId, setSellerId] = useState(client.seller_id ?? "");
+
+  return (
+    <div className="fixed inset-0 z-50 bg-invictus-deep/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden mx-auto">
+        <div className="bg-invictus text-white px-5 py-4 flex justify-between items-start">
+          <h3 className="font-bold text-lg">Editar cliente</h3>
+          <button onClick={onClose} className="text-white/70 hover:text-white">✕</button>
+        </div>
+        <form
+          onSubmit={(e) => { e.preventDefault(); onSave({ name, phone, email, cpf_cnpj: cpf, seller_id: sellerId }); }}
+          className="p-5 space-y-3"
+        >
+          <Field label="Nome" required>
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-invictus"
+            />
+          </Field>
+          <Field label="Telefone" hint="Só dígitos. Ex: 48999999999">
+            <input
+              required
+              inputMode="numeric"
+              pattern="\d{10,13}"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-invictus"
+            />
+          </Field>
+          <Field label="E-mail" required>
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-invictus"
+            />
+          </Field>
+          <Field label="CPF ou CNPJ" hint="Só dígitos (opcional)">
+            <input
+              inputMode="numeric"
+              pattern="\d{11}|\d{14}"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value.replace(/\D/g, ""))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-invictus"
+            />
+          </Field>
+          {isAdmin && (
+            <Field label="Vendedor">
+              <select
+                value={sellerId}
+                onChange={(e) => setSellerId(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-invictus"
+              >
+                <option value="">— sem vendedor —</option>
+                {sellers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-4 py-2 bg-invictus text-white rounded-lg text-sm font-semibold hover:bg-invictus-dark transition disabled:opacity-60"
+            >
+              {busy ? "Salvando…" : "Salvar"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

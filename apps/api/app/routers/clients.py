@@ -82,6 +82,49 @@ def create_client(
     return client
 
 
+class ClientUpdate(BaseModel):
+    name: str | None = Field(None, min_length=2, max_length=200)
+    phone: str | None = Field(None, pattern=r"^\d{10,13}$")
+    email: str | None = Field(None, min_length=5, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    cpf_cnpj: str | None = Field(None, pattern=r"^\d{11}$|^\d{14}$|^$")
+    seller_id: str | None = None
+
+
+@router.patch("/{client_id}")
+@limiter.limit("30/minute")
+def update_client(
+    request: Request, client_id: str,
+    payload: ClientUpdate,
+    user: AdminUser = Depends(require_admin),
+):
+    """Edita dados básicos do cliente. Admin sempre; seller só os próprios."""
+    if user.role not in ("admin", "seller"):
+        raise HTTPException(403, "Perfil sem permissão pra editar cliente")
+    _load_client_for(user, client_id, columns="id")
+
+    update = payload.model_dump(exclude_none=True)
+    if "cpf_cnpj" in update and update["cpf_cnpj"] == "":
+        update["cpf_cnpj"] = None
+    if "seller_id" in update:
+        if user.role == "seller":
+            update.pop("seller_id")  # vendedor não troca dono
+        elif update["seller_id"]:
+            owner = db.table("users").select("company_id") \
+                .eq("id", update["seller_id"]).single().execute().data
+            if not owner or owner["company_id"] != user.company_id:
+                raise HTTPException(400, "seller_id inválido")
+    if not update:
+        raise HTTPException(400, "Nada para atualizar")
+
+    db.table("clients").update(update).eq("id", client_id).execute()
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.update", entity_type="client", entity_id=client_id,
+        metadata={"fields": list(update.keys())},
+    )
+    return {"ok": True}
+
+
 @router.get("")
 def list_clients(user: AdminUser = Depends(require_admin)):
     q = db.table("clients") \
