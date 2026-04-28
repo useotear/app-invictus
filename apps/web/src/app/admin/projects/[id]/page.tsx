@@ -100,22 +100,37 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   }
 
   async function schedule(phase: Phase) {
+    const isCompleted = phase.status === "completed";
     const d = await dialog.prompt({
-      title: `Agendar: ${phase.phase_name}`,
-      message: "Escolha a data prevista. Deixe em branco para remover.",
+      title: isCompleted ? `Editar data: ${phase.phase_name}` : `Agendar: ${phase.phase_name}`,
+      message: isCompleted
+        ? "Editar a data em que esta fase foi concluída."
+        : "Escolha a data prevista. Deixe em branco para remover.",
       type: "date",
-      defaultValue: phase.scheduled_date ?? "",
+      defaultValue: (isCompleted ? phase.completed_date : phase.scheduled_date) ?? "",
       confirmText: "Salvar",
     });
     if (d === null) return;
-    // Não mexe no status — só a conclusão do projeto avança fases.
-    await api.patch(`/phases/${phase.id}`, { scheduled_date: d || null });
-    toast.show({
-      message: d ? `Agendado para ${new Date(d).toLocaleDateString("pt-BR")}` : "Agendamento removido",
-      tone: "success",
-      duration: 3000,
-    });
-    reload();
+    const payload = isCompleted
+      ? { completed_date: d || null }
+      : { scheduled_date: d || null };
+    try {
+      await api.patch(`/phases/${phase.id}`, payload);
+      toast.show({
+        message: d
+          ? `${isCompleted ? "Conclusão" : "Agendamento"}: ${new Date(d).toLocaleDateString("pt-BR")}`
+          : `${isCompleted ? "Data de conclusão" : "Agendamento"} removido`,
+        tone: "success",
+        duration: 3000,
+      });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 5000,
+      });
+    }
   }
 
   async function updatePayment() {
@@ -329,12 +344,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                                 : "Sem data — toque para agendar"}
                       </p>
                     </div>
-                    {ph.status !== "completed" && canEditPhase(me?.role, ph.phase_number) && (
+                    {canEditPhase(me?.role, ph.phase_number) && (
                       <button
                         onClick={() => schedule(ph)}
                         className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition"
                       >
-                        {ph.scheduled_date ? "Remarcar" : "Agendar"}
+                        {ph.status === "completed" ? "Editar data" : ph.scheduled_date ? "Remarcar" : "Agendar"}
                       </button>
                     )}
                   </div>
