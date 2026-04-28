@@ -55,4 +55,5 @@ export const api = {
     req<T>(p, { method: "POST", body: JSON.stringify(body) }),
   patch: <T>(p: string, body: unknown) =>
     req<T>(p, { method: "PATCH", body: JSON.stringify(body) }),
+  delete: <T>(p: string) => req<T>(p, { method: "DELETE" }),
 };

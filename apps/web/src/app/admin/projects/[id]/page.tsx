@@ -120,9 +120,17 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
   async function updatePayment() {
     if (!p) return;
+    const contract = await dialog.prompt({
+      title: "Valor do contrato (R$)",
+      message: "Valor total do contrato.",
+      type: "number",
+      defaultValue: String(p.contract_value ?? 0),
+      confirmText: "Próximo",
+    });
+    if (contract === null) return;
     const amount = await dialog.prompt({
-      title: "Atualizar pagamento",
-      message: "Valor pago acumulado (R$):",
+      title: "Valor pago (R$)",
+      message: "Valor pago acumulado até hoje.",
       type: "number",
       defaultValue: String(p.paid_amount ?? 0),
       confirmText: "Próximo",
@@ -136,12 +144,21 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       confirmText: "Salvar",
     });
     if (method === null) return;
-    await api.patch(`/projects/${params.id}`, {
-      paid_amount: Number(amount),
-      payment_method: method,
-    });
-    toast.show({ message: "Pagamento atualizado.", tone: "success", duration: 3000 });
-    reload();
+    try {
+      await api.patch(`/projects/${params.id}`, {
+        contract_value: Number(contract),
+        paid_amount: Number(amount),
+        payment_method: method,
+      });
+      toast.show({ message: "Pagamento atualizado.", tone: "success", duration: 3000 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 5000,
+      });
+    }
   }
 
   if (!p) return <p className="text-slate-500">Carregando...</p>;

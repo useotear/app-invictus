@@ -125,6 +125,28 @@ def update_client(
     return {"ok": True}
 
 
+@router.delete("/{client_id}")
+@limiter.limit("10/minute")
+def delete_client(request: Request, client_id: str, user: AdminUser = Depends(require_admin)):
+    """Apaga cliente. Cascata em projects/phases/photos via FK on delete cascade."""
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin pode excluir cliente")
+    c = _load_client_for(user, client_id, columns="id,name,auth_user_id")
+    auth_user_id = c.get("auth_user_id")
+    db.table("clients").delete().eq("id", client_id).execute()
+    if auth_user_id:
+        try:
+            db.auth.admin.delete_user(auth_user_id)
+        except Exception:
+            pass  # se a conta auth não existe mais, ignora
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="client.delete", entity_type="client", entity_id=client_id,
+        metadata={"name": c["name"]},
+    )
+    return {"ok": True}
+
+
 @router.get("")
 def list_clients(user: AdminUser = Depends(require_admin)):
     q = db.table("clients") \

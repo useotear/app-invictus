@@ -259,6 +259,30 @@ export default function ClientsPage() {
     }
   }
 
+  async function deleteClient(clientId: string, clientName: string) {
+    const ok = await dialog.confirm({
+      title: `Excluir ${clientName}?`,
+      message:
+        "Atenção: isso apaga o cliente e TODOS os projetos, fases, documentos e fotos relacionados. " +
+        "A conta de acesso do cliente também é removida. Não dá pra desfazer.",
+      confirmText: "Excluir tudo",
+      cancelText: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/clients/${clientId}`);
+      toast.show({ message: `${clientName} excluído.`, tone: "success", duration: 3000 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao excluir",
+        tone: "error",
+        duration: 5000,
+      });
+    }
+  }
+
   async function sendWhatsappLink(clientId: string) {
     const ok = await dialog.confirm({
       title: "Enviar link por WhatsApp",
@@ -559,6 +583,11 @@ export default function ClientsPage() {
                     <button onClick={() => setEditing(c)} className="text-xs px-3 py-1.5 border border-slate-400 text-slate-700 rounded hover:bg-slate-100 transition">
                       ✏️ Editar dados
                     </button>
+                    {isAdmin && (
+                      <button onClick={() => deleteClient(c.id, c.name)} className="text-xs px-3 py-1.5 border border-red-600 text-red-700 rounded hover:bg-red-600 hover:text-white transition">
+                        🗑️ Excluir
+                      </button>
+                    )}
                     {(() => {
                       const e = expiryLabel(c.access_token_expires_at);
                       const tone = e.tone === "expired" ? "bg-red-100 text-red-700" :
