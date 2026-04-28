@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_jwt_secret: str = ""  # Settings → API → JWT Settings → JWT Secret (HS256)
 
-    # WhatsApp (Evolution API por padrão; trocar base_url para Z-API se preferido)
+    # WhatsApp via n8n webhook. Override por env WHATSAPP_WEBHOOK_URL se mudar o flow.
+    whatsapp_webhook_url: str = "https://n8nwebh.otear.com.br/webhook/envio-app"
+    whatsapp_webhook_secret: str = ""  # opcional, vai como header X-Webhook-Secret
+    # Legado (Evolution API) — mantido pra compatibilidade, hoje não é usado.
     whatsapp_base_url: str = ""
     whatsapp_instance: str = ""
     whatsapp_token: str = ""
