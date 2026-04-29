@@ -57,7 +57,7 @@ async def upload_photo(
     project_id: str,
     file: UploadFile = File(...),
     category: str = Form(..., max_length=30),
-    phase_number: int = Form(9, ge=1, le=12),
+    phase_number: int = Form(9, ge=1, le=13),
     user: AdminUser = Depends(require_admin),
 ):
     _assert_project_access(project_id, user)
