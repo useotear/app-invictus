@@ -1,6 +1,6 @@
 // Invictus Solar — Service Worker (push + cache básico)
 
-const CACHE = "invictus-v1";
+const CACHE = "invictus-v2";
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
@@ -8,13 +8,30 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+  e.waitUntil((async () => {
+    // Limpa caches de versões antigas
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+
+  // Não intercepta cross-origin (API, Supabase, fontes externas).
+  // Deixa o browser tratar — senão o fallback "/" devolve HTML pra
+  // chamadas que esperam JSON, quebrando o app.
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Não intercepta data: blob: chrome-extension: etc.
+  if (!url.protocol.startsWith("http")) return;
+
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request).then((r) => r || caches.match("/")))
+    fetch(e.request).catch(() =>
+      caches.match(e.request).then((r) => r || caches.match("/"))
+    )
   );
 });
 
