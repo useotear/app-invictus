@@ -32,6 +32,8 @@ interface ProjectDetail {
   contract_value: number | null;
   paid_amount: number | null;
   payment_method: string | null;
+  down_payment: number | null;
+  installments: number | null;
   current_phase: number;
   client: { name: string; phone: string; email: string | null; access_token: string };
   seller: { id: string; name: string } | null;
@@ -177,27 +179,45 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       confirmText: "Próximo",
     });
     if (contract === null) return;
-    const amount = await dialog.prompt({
-      title: "Valor pago (R$)",
-      message: "Valor pago acumulado até hoje.",
+    const entry = await dialog.prompt({
+      title: "Entrada (R$)",
+      message: "Valor da entrada (à vista). Deixe 0 se não há entrada.",
       type: "number",
-      defaultValue: String(p.paid_amount ?? 0),
+      defaultValue: String(p.down_payment ?? 0),
       confirmText: "Próximo",
     });
-    if (amount === null) return;
+    if (entry === null) return;
+    const installments = await dialog.prompt({
+      title: "Parcelas",
+      message: "Quantas parcelas pro restante? Use 1 pra à vista.",
+      type: "number",
+      defaultValue: String(p.installments ?? 1),
+      confirmText: "Próximo",
+    });
+    if (installments === null) return;
     const method = await dialog.prompt({
-      title: "Forma de pagamento",
+      title: "Forma de pagamento das parcelas",
       type: "select",
       options: PAYMENT_METHODS,
-      defaultValue: p.payment_method ?? "pix",
-      confirmText: "Salvar",
+      defaultValue: p.payment_method ?? "boleto",
+      confirmText: "Próximo",
     });
     if (method === null) return;
+    const paid = await dialog.prompt({
+      title: "Valor já pago acumulado (R$)",
+      message: "Quanto o cliente já pagou no total (entrada + parcelas pagas).",
+      type: "number",
+      defaultValue: String(p.paid_amount ?? 0),
+      confirmText: "Salvar",
+    });
+    if (paid === null) return;
     try {
       await api.patch(`/projects/${params.id}`, {
         contract_value: Number(contract),
-        paid_amount: Number(amount),
+        down_payment: Number(entry) || null,
+        installments: Number(installments) > 0 ? Number(installments) : null,
         payment_method: method,
+        paid_amount: Number(paid),
       });
       toast.show({ message: "Pagamento atualizado.", tone: "success", duration: 3000 });
       reload();
@@ -274,6 +294,29 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               <p className="font-bold text-invictus-deep capitalize text-sm sm:text-base truncate">{p.payment_method ?? "—"}</p>
             </div>
           </div>
+          {(p.down_payment || p.installments) && (
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600 border-t border-slate-100 pt-3">
+              {p.down_payment ? (
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase">Entrada</p>
+                  <p className="font-bold text-invictus-deep tabular-nums">{fmtBRL(p.down_payment)}</p>
+                </div>
+              ) : null}
+              {p.installments && p.installments > 0 ? (
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase">Parcelas</p>
+                  <p className="font-bold text-invictus-deep">
+                    {p.installments}x{" "}
+                    {p.contract_value && p.contract_value > 0 && (
+                      <span className="text-slate-500 font-normal text-[11px]">
+                        ({fmtBRL(((p.contract_value ?? 0) - (p.down_payment ?? 0)) / p.installments)} cada)
+                      </span>
+                    )}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          )}
           <div className="mt-3 flex items-center gap-2">
             <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div className="h-full bg-invictus-accent" style={{ width: `${pct}%` }} />

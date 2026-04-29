@@ -28,6 +28,8 @@ class ProjectIn(BaseModel):
     contract_value: float | None = Field(None, ge=0)
     paid_amount: float = Field(0, ge=0)
     payment_method: str | None = None
+    down_payment: float | None = Field(None, ge=0)
+    installments: int | None = Field(None, ge=1, le=60)
 
 
 class ProjectUpdate(BaseModel):
@@ -39,6 +41,8 @@ class ProjectUpdate(BaseModel):
     paid_amount: float | None = Field(None, ge=0)
     payment_method: str | None = None
     seller_id: str | None = None
+    down_payment: float | None = Field(None, ge=0)
+    installments: int | None = Field(None, ge=1, le=60)
 
 
 def _assert_client_access(client_id: str, user: AdminUser) -> dict:
@@ -95,7 +99,7 @@ def create_project(payload: ProjectIn, user: AdminUser = Depends(require_admin))
 @router.get("")
 def list_projects(user: AdminUser = Depends(require_admin)):
     q = db.table("projects").select(
-        "id,current_phase,address,location_link,installation_notes,system_size_kwp,contract_value,paid_amount,payment_method,"
+        "id,current_phase,address,location_link,installation_notes,system_size_kwp,contract_value,paid_amount,payment_method,down_payment,installments,"
         "created_at,updated_at,installed_at,seller_id,"
         "client:clients(id,name,phone,email),"
         "seller:users!projects_seller_id_fkey(id,name)"
@@ -109,7 +113,7 @@ def list_projects(user: AdminUser = Depends(require_admin)):
 def get_project(project_id: str, user: AdminUser = Depends(require_admin)):
     _assert_project_access(project_id, user)
     r = db.table("projects").select(
-        "id,current_phase,address,location_link,installation_notes,system_size_kwp,contract_value,paid_amount,payment_method,"
+        "id,current_phase,address,location_link,installation_notes,system_size_kwp,contract_value,paid_amount,payment_method,down_payment,installments,"
         "created_at,updated_at,installed_at,seller_id,"
         "client:clients(id,name,phone,email,access_token),"
         "seller:users!projects_seller_id_fkey(id,name),"

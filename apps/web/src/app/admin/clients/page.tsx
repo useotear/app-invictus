@@ -41,6 +41,8 @@ interface ProjectForm {
   value: string;
   paid: string;
   method: string;
+  down_payment: string;
+  installments: string;
 }
 
 const EMPTY_PROJECT: ProjectForm = {
@@ -51,6 +53,8 @@ const EMPTY_PROJECT: ProjectForm = {
   value: "",
   paid: "",
   method: "pix",
+  down_payment: "",
+  installments: "",
 };
 
 type NewClientForm = {
@@ -120,6 +124,8 @@ export default function ClientsPage() {
             contract_value: pf.value ? Number(pf.value) : null,
             paid_amount: pf.paid ? Number(pf.paid) : 0,
             payment_method: pf.method || null,
+            down_payment: pf.down_payment ? Number(pf.down_payment) : null,
+            installments: pf.installments ? Number(pf.installments) : null,
           });
           toast.show({ message: "Cliente e projeto criados.", tone: "success" });
         } catch (err) {
@@ -155,6 +161,8 @@ export default function ClientsPage() {
         contract_value: pf.value ? Number(pf.value) : null,
         paid_amount: pf.paid ? Number(pf.paid) : 0,
         payment_method: pf.method || null,
+        down_payment: pf.down_payment ? Number(pf.down_payment) : null,
+        installments: pf.installments ? Number(pf.installments) : null,
       });
       await dialog.alert({ title: "Projeto criado", message: "Pronto! O projeto foi adicionado." });
       setProjectForm({ ...projectForm, [clientId]: EMPTY_PROJECT });
@@ -497,6 +505,33 @@ export default function ClientsPage() {
                     placeholder="0.00"
                     value={form.project.paid}
                     onChange={(e) => setForm({ ...form, project: { ...form.project, paid: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Entrada (R$)" hint="Opcional. Pago à vista no contrato.">
+                  <input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={form.project.down_payment}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, down_payment: e.target.value } })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
+                  />
+                </Field>
+
+                <Field label="Parcelas" hint="Quantas vezes o restante? Ex: 12 (12x no boleto)">
+                  <input
+                    type="number"
+                    min="1"
+                    max="60"
+                    inputMode="numeric"
+                    placeholder="12"
+                    value={form.project.installments}
+                    onChange={(e) => setForm({ ...form, project: { ...form.project, installments: e.target.value } })}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
                   />
                 </Field>
