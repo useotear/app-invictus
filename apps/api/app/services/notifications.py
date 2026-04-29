@@ -13,6 +13,42 @@ def _render(template: str, *, nome: str, data: str, link: str) -> str:
             .replace("{link}", link))
 
 
+async def _notify_finance_contract_signed(project: dict, admin_link: str) -> None:
+    """Quando contrato é assinado (fase 1), avisa o financeiro via WhatsApp."""
+    phone = settings.finance_whatsapp_phone
+    if not phone:
+        return
+    client = project.get("client") or {}
+    seller = project.get("seller") or {}
+    msg = (
+        "💰 Novo contrato assinado — Invictus Solar\n\n"
+        f"Cliente: {client.get('name') or '—'}\n"
+        f"Telefone: {client.get('phone') or '—'}\n"
+        f"Endereço: {project.get('address') or '—'}\n"
+        f"Valor: R$ {project.get('contract_value') or '—'}\n"
+        f"Entrada: R$ {project.get('down_payment') or '—'}\n"
+        f"Parcelas: {project.get('installments') or '—'}x {project.get('payment_method') or ''}\n"
+        f"Vendedor: {seller.get('name') or '—'}\n\n"
+        f"Detalhes: {admin_link}"
+    )
+    masked = f"****{phone[-4:]}" if len(phone) >= 4 else "****"
+    log = {
+        "project_id": project["id"],
+        "channel": "whatsapp",
+        "recipient_type": "admin",
+        "recipient": masked,
+        "message": None,
+    }
+    try:
+        await send_whatsapp(phone, msg)
+        log["status"] = "sent"
+        log["sent_at"] = datetime.utcnow().isoformat()
+    except Exception as e:
+        log["status"] = "failed"
+        log["error"] = str(e)
+    db.table("notifications_log").insert(log).execute()
+
+
 async def dispatch_phase_notifications(
     project_id: str, phase_number: int, event: str = "completed"
 ) -> None:
@@ -33,6 +69,10 @@ async def dispatch_phase_notifications(
     company_id = project["company_id"]
     portal_link = f"{settings.portal_base_url}/portal/{client['access_token']}"
     admin_link = f"{settings.portal_base_url}/admin/projects/{project_id}"
+
+    # Aviso ao financeiro quando contrato é assinado (fase 1)
+    if phase_number == 1 and event == "completed":
+        await _notify_finance_contract_signed(project, admin_link)
 
     phase = db.table("project_phases").select("*") \
         .eq("project_id", project_id).eq("phase_number", phase_number).single().execute().data
