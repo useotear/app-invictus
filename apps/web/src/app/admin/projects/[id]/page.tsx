@@ -75,6 +75,81 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     api.get<Seller[]>("/users/sellers").then(setSellers).catch(() => {});
   }, [me?.role]);
 
+  async function payInstallment() {
+    if (!p) return;
+    const contract = p.contract_value ?? 0;
+    const entry = p.down_payment ?? 0;
+    const n = p.installments ?? 0;
+    if (contract <= 0 || n <= 0) {
+      await dialog.alert({
+        title: "Configure o pagamento primeiro",
+        message: "Preencha valor do contrato, entrada e número de parcelas no botão 'editar' do Pagamento.",
+        tone: "error",
+      });
+      return;
+    }
+    const installmentValue = (contract - entry) / n;
+    const newPaid = (p.paid_amount ?? 0) + installmentValue;
+    const ok = await dialog.confirm({
+      title: "Registrar 1 parcela paga",
+      message:
+        `Valor de cada parcela: R$ ${installmentValue.toFixed(2)}\n` +
+        `Pago atual: R$ ${(p.paid_amount ?? 0).toFixed(2)}\n` +
+        `Após registrar: R$ ${newPaid.toFixed(2)}`,
+      confirmText: "Confirmar",
+    });
+    if (!ok) return;
+    try {
+      await api.patch(`/projects/${params.id}`, {
+        paid_amount: Number(newPaid.toFixed(2)),
+      });
+      toast.show({ message: "Parcela registrada.", tone: "success", duration: 2500 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
+
+  async function payDownPayment() {
+    if (!p) return;
+    const entry = p.down_payment ?? 0;
+    if (entry <= 0) {
+      await dialog.alert({
+        title: "Sem entrada cadastrada",
+        message: "Defina o valor da entrada no 'editar' do Pagamento.",
+        tone: "error",
+      });
+      return;
+    }
+    const newPaid = (p.paid_amount ?? 0) + entry;
+    const ok = await dialog.confirm({
+      title: "Registrar entrada paga",
+      message:
+        `Entrada: R$ ${entry.toFixed(2)}\n` +
+        `Pago atual: R$ ${(p.paid_amount ?? 0).toFixed(2)}\n` +
+        `Após registrar: R$ ${newPaid.toFixed(2)}`,
+      confirmText: "Confirmar",
+    });
+    if (!ok) return;
+    try {
+      await api.patch(`/projects/${params.id}`, {
+        paid_amount: Number(newPaid.toFixed(2)),
+      });
+      toast.show({ message: "Entrada registrada.", tone: "success", duration: 2500 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
+
   async function editLocationLink() {
     if (!p) return;
     const link = await dialog.prompt({
@@ -355,10 +430,18 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
       <div className="px-6 -mt-6 max-w-4xl mx-auto w-full space-y-5">
         <div className="bg-white rounded-2xl shadow-card p-5">
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
             <h3 className="font-bold text-invictus">Pagamento</h3>
             {canEditProject(me?.role) && (
-              <button onClick={updatePayment} className="text-xs text-invictus hover:underline">editar</button>
+              <div className="flex gap-2 text-xs">
+                {(p.down_payment ?? 0) > 0 && (
+                  <button onClick={payDownPayment} className="text-emerald-700 hover:underline">+ Entrada paga</button>
+                )}
+                {(p.installments ?? 0) > 0 && (
+                  <button onClick={payInstallment} className="text-emerald-700 hover:underline">+ 1 parcela paga</button>
+                )}
+                <button onClick={updatePayment} className="text-invictus hover:underline">editar</button>
+              </div>
             )}
           </div>
           <div className="grid grid-cols-3 gap-3">
