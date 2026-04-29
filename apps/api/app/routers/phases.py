@@ -117,9 +117,22 @@ async def update_phase(
         if payload.completed_date is None:
             db.table("project_phases").update({"completed_date": date.today().isoformat()}) \
                 .eq("id", phase_id).execute()
-        next_phase = min(phase["phase_number"] + 1, 13)
-        db.table("projects").update({"current_phase": next_phase}) \
+    if payload.status in ("completed", "pending"):
+        # Recalcula current_phase = menor fase ainda não concluída.
+        # Cobre tanto avanço (concluiu uma fase) quanto reabertura (desmarcou).
+        all_phases = db.table("project_phases").select("phase_number,status") \
+            .eq("project_id", phase["project_id"]).execute().data or []
+        # Considera o efeito da própria mudança que ainda não foi gravada se o
+        # row em memória não reflete; força via merge.
+        for ap in all_phases:
+            if ap["phase_number"] == phase["phase_number"]:
+                ap["status"] = payload.status
+        pending = [p_["phase_number"] for p_ in all_phases if p_["status"] != "completed"]
+        new_current = min(pending) if pending else 13
+        db.table("projects").update({"current_phase": new_current}) \
             .eq("id", phase["project_id"]).execute()
+
+    if payload.status == "completed":
 
         # Quando "Kit entregue" (fase 4) é concluído, agenda automaticamente a
         # "Instalação agendada" (fase 5) pra +7 dias. Sempre sobrescreve — admin

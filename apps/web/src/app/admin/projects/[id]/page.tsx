@@ -108,6 +108,50 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     return `Olá ${firstName}! Seu projeto avançou para a fase ${phase.phase_number}: ${phase.phase_name}. Acompanhe em tempo real no seu portal.`;
   }
 
+  async function togglePhaseStatus(phase: Phase) {
+    if (phase.status === "completed") {
+      const ok = await dialog.confirm({
+        title: `Desmarcar "${phase.phase_name}"?`,
+        message: "A fase volta pra pendente. A data de conclusão é apagada.",
+        confirmText: "Desmarcar",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await api.patch(`/phases/${phase.id}`, { status: "pending", completed_date: null });
+        toast.show({ message: "Fase reaberta.", tone: "success", duration: 2500 });
+        reload();
+      } catch (e) {
+        toast.show({
+          message: e instanceof Error ? e.message : "Erro ao desmarcar",
+          tone: "error",
+          duration: 5000,
+        });
+      }
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      const date = await dialog.prompt({
+        title: `Marcar "${phase.phase_name}" como concluída`,
+        message: "Em que dia foi concluída?",
+        type: "date",
+        defaultValue: today,
+        confirmText: "Concluir",
+      });
+      if (date === null) return;
+      try {
+        await api.patch(`/phases/${phase.id}`, { status: "completed", completed_date: date || today });
+        toast.show({ message: "Fase concluída.", tone: "success", duration: 2500 });
+        reload();
+      } catch (e) {
+        toast.show({
+          message: e instanceof Error ? e.message : "Erro ao concluir",
+          tone: "error",
+          duration: 5000,
+        });
+      }
+    }
+  }
+
   async function complete(phase: Phase) {
     const today = new Date().toISOString().slice(0, 10);
     const completedDate = await dialog.prompt({
@@ -425,12 +469,25 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                       </p>
                     </div>
                     {canEditPhase(me?.role, ph.phase_number) && (
-                      <button
-                        onClick={() => schedule(ph)}
-                        className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition"
-                      >
-                        {ph.status === "completed" ? "Editar data" : ph.scheduled_date ? "Remarcar" : "Agendar"}
-                      </button>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => schedule(ph)}
+                          className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg font-medium hover:bg-invictus hover:text-white transition"
+                        >
+                          {ph.status === "completed" ? "Editar data" : ph.scheduled_date ? "Remarcar" : "Agendar"}
+                        </button>
+                        <button
+                          onClick={() => togglePhaseStatus(ph)}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition border ${
+                            ph.status === "completed"
+                              ? "border-red-400 text-red-600 hover:bg-red-500 hover:text-white"
+                              : "border-emerald-500 text-emerald-700 hover:bg-emerald-500 hover:text-white"
+                          }`}
+                          title={ph.status === "completed" ? "Reabrir fase" : "Marcar como concluída"}
+                        >
+                          {ph.status === "completed" ? "↺ Reabrir" : "✓ Concluir"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </li>
