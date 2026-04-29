@@ -1,0 +1,95 @@
+-- 0020: ajusta a ordem das fases 6-9
+-- Antes:                                       Depois:
+-- 6 Instalação concluída             →         6 Entrada do projeto na Celesc
+-- 7 Entrada do projeto na Celesc     →         7 Projeto em análise
+-- 8 Projeto em análise               →         8 Projeto aprovado
+-- 9 Projeto aprovado                 →         9 Instalação concluída
+--
+-- Permutação:  6→9  7→6  8→7  9→8
+
+alter table project_phases drop constraint if exists project_phases_phase_number_check;
+alter table projects drop constraint if exists projects_current_phase_check;
+alter table notification_templates drop constraint if exists notification_templates_phase_number_check;
+alter table project_photos drop constraint if exists project_photos_phase_number_check;
+
+-- 1) project_phases — pivô 96-99
+update project_phases set phase_number = 96 where phase_number = 6;
+update project_phases set phase_number = 97 where phase_number = 7;
+update project_phases set phase_number = 98 where phase_number = 8;
+update project_phases set phase_number = 99 where phase_number = 9;
+
+update project_phases set phase_number = 9, phase_name = 'Instalação concluída'         where phase_number = 96;
+update project_phases set phase_number = 6, phase_name = 'Entrada do projeto na Celesc' where phase_number = 97;
+update project_phases set phase_number = 7, phase_name = 'Projeto em análise'           where phase_number = 98;
+update project_phases set phase_number = 8, phase_name = 'Projeto aprovado'             where phase_number = 99;
+
+-- 2) projects.current_phase
+update projects set current_phase = 96 where current_phase = 6;
+update projects set current_phase = 97 where current_phase = 7;
+update projects set current_phase = 98 where current_phase = 8;
+update projects set current_phase = 99 where current_phase = 9;
+
+update projects set current_phase = 9 where current_phase = 96;
+update projects set current_phase = 6 where current_phase = 97;
+update projects set current_phase = 7 where current_phase = 98;
+update projects set current_phase = 8 where current_phase = 99;
+
+-- 3) notification_templates
+update notification_templates set phase_number = 96 where phase_number = 6;
+update notification_templates set phase_number = 97 where phase_number = 7;
+update notification_templates set phase_number = 98 where phase_number = 8;
+update notification_templates set phase_number = 99 where phase_number = 9;
+
+update notification_templates set phase_number = 9 where phase_number = 96;
+update notification_templates set phase_number = 6 where phase_number = 97;
+update notification_templates set phase_number = 7 where phase_number = 98;
+update notification_templates set phase_number = 8 where phase_number = 99;
+
+-- 4) project_photos (fotos do checklist da instalação ficam atreladas à fase 9)
+update project_photos set phase_number = 96 where phase_number = 6;
+update project_photos set phase_number = 97 where phase_number = 7;
+update project_photos set phase_number = 98 where phase_number = 8;
+update project_photos set phase_number = 99 where phase_number = 9;
+
+update project_photos set phase_number = 9 where phase_number = 96;
+update project_photos set phase_number = 6 where phase_number = 97;
+update project_photos set phase_number = 7 where phase_number = 98;
+update project_photos set phase_number = 8 where phase_number = 99;
+
+-- Recria constraints
+alter table project_phases add constraint project_phases_phase_number_check
+  check (phase_number between 1 and 13);
+alter table projects add constraint projects_current_phase_check
+  check (current_phase between 1 and 13);
+alter table notification_templates add constraint notification_templates_phase_number_check
+  check (phase_number between 1 and 13);
+alter table project_photos add constraint project_photos_phase_number_check
+  check (phase_number between 1 and 13);
+
+-- Trigger atualizada pra novos projetos
+create or replace function seed_project_phases()
+returns trigger language plpgsql as $$
+declare
+  phases text[] := array[
+    'Contrato assinado / Pagamento',
+    'Compra do kit',
+    'Previsão de entrega do kit',
+    'Kit entregue',
+    'Instalação agendada',
+    'Entrada do projeto na Celesc',
+    'Projeto em análise',
+    'Projeto aprovado',
+    'Instalação concluída',
+    'Troca do relógio agendada',
+    'Relógio trocado / Sistema ativo',
+    'App de monitoramento instalado',
+    'Manutenção agendada'
+  ];
+  i int;
+begin
+  for i in 1..13 loop
+    insert into project_phases (project_id, phase_number, phase_name)
+    values (new.id, i, phases[i]);
+  end loop;
+  return new;
+end $$;

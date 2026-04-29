@@ -377,7 +377,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         <ProjectDocuments projectId={params.id} />
 
-        {p.current_phase >= 5 && p.current_phase <= 6 && (
+        {p.current_phase >= 5 && p.current_phase <= 9 && (
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
         )}
 

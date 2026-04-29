@@ -107,7 +107,7 @@ async def notify_upcoming_installs() -> dict:
         proj = row.get("project")
         if not proj:
             continue
-        if proj.get("current_phase", 0) >= 6:
+        if proj.get("current_phase", 0) > 9:
             continue  # instalação já concluída
         by_company.setdefault(proj["company_id"], []).append(proj)
 

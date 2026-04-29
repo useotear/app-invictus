@@ -7,7 +7,7 @@ router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 KIT_DELIVERED_PHASE = 4   # "Kit entregue"
 SCHEDULED_PHASE = 5       # "Instalação agendada"
-INSTALL_DONE_PHASE = 6    # "Instalação concluída"
+INSTALL_DONE_PHASE = 9    # "Instalação concluída"
 
 
 @router.get("/installations")
