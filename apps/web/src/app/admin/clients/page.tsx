@@ -259,6 +259,34 @@ export default function ClientsPage() {
     }
   }
 
+  async function testClientPush(clientId: string, clientName: string) {
+    try {
+      const r = await api.post<{ ok: boolean; sent: number; subscriptions: number; reason?: string }>(
+        "/push/test",
+        {
+          client_id: clientId,
+          title: "Invictus Solar — teste",
+          body: `Olá ${clientName.split(" ")[0]}! Este é um teste de notificação.`,
+          url: "/cliente",
+        },
+      );
+      if (!r.ok && r.reason) {
+        await dialog.alert({ title: "Não foi possível enviar", message: r.reason, tone: "error" });
+      } else {
+        await dialog.alert({
+          title: r.ok ? "Push enviado" : "Falha",
+          message: `Enviado para ${r.sent} de ${r.subscriptions} dispositivo(s) do cliente.`,
+        });
+      }
+    } catch (e) {
+      await dialog.alert({
+        title: "Erro",
+        message: e instanceof Error ? e.message : "Falha ao enviar",
+        tone: "error",
+      });
+    }
+  }
+
   async function deleteClient(clientId: string, clientName: string) {
     const ok = await dialog.confirm({
       title: `Excluir ${clientName}?`,
@@ -582,6 +610,9 @@ export default function ClientsPage() {
                     </button>
                     <button onClick={() => setEditing(c)} className="text-xs px-3 py-1.5 border border-slate-400 text-slate-700 rounded hover:bg-slate-100 transition">
                       ✏️ Editar dados
+                    </button>
+                    <button onClick={() => testClientPush(c.id, c.name)} className="text-xs px-3 py-1.5 border border-purple-500 text-purple-700 rounded hover:bg-purple-500 hover:text-white transition">
+                      📲 Testar push
                     </button>
                     {isAdmin && (
                       <button onClick={() => deleteClient(c.id, c.name)} className="text-xs px-3 py-1.5 border border-red-600 text-red-700 rounded hover:bg-red-600 hover:text-white transition">
