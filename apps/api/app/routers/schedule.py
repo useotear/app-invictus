@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import db
 from ..deps import AdminUser, require_admin
@@ -10,26 +10,14 @@ SCHEDULED_PHASE = 5       # "Instalação agendada"
 INSTALL_DONE_PHASE = 9    # "Instalação concluída"
 
 
-@router.get("/installations")
-def installations_queue(user: AdminUser = Depends(require_admin)):
-    """Fila FIFO de instalações pendentes — ordem de chegada do kit.
-
-    Retorna projetos que:
-    - Tiveram a fase 4 (Kit entregue) concluída
-    - Ainda não passaram pela fase 9 (Instalação concluída)
-
-    Ordenados pela data de conclusão da fase 4 ASC (primeiro a chegar, primeiro a instalar).
-    A equipe deve respeitar essa ordem: a UI só libera a marcação do #1.
-    """
-    # Busca todos os projetos da empresa que estão na janela de instalação
-    # Cronograma é geral — todos os perfis veem a agenda completa da empresa.
-    projects_q = db.table("projects").select(
-        "id,current_phase,address,location_link,installation_notes,system_size_kwp,created_at,seller_id,"
+def _build_queue(company_id: str) -> list[dict]:
+    """Monta a fila ordenada. Compartilhado por GET e pelos endpoints de reorder."""
+    rows = db.table("projects").select(
+        "id,current_phase,address,location_link,installation_notes,system_size_kwp,"
+        "created_at,seller_id,install_priority,"
         "client:clients(id,name,phone),"
         "phases:project_phases(phase_number,status,scheduled_date,completed_date)"
-    ).eq("company_id", user.company_id).lt("current_phase", INSTALL_DONE_PHASE + 1)
-
-    rows = projects_q.execute().data or []
+    ).eq("company_id", company_id).lt("current_phase", INSTALL_DONE_PHASE + 1).execute().data or []
 
     queue = []
     for p in rows:
@@ -38,11 +26,9 @@ def installations_queue(user: AdminUser = Depends(require_admin)):
         install_phase = next((ph for ph in phases if ph["phase_number"] == INSTALL_DONE_PHASE), None)
         scheduled_phase = next((ph for ph in phases if ph["phase_number"] == SCHEDULED_PHASE), None)
 
-        # Só entra na fila quem já recebeu o kit
         kit_arrival = kit_phase and kit_phase.get("completed_date")
         if not kit_arrival:
             continue
-        # E ainda não teve a instalação marcada como concluída
         if install_phase and install_phase.get("status") == "completed":
             continue
 
@@ -57,12 +43,60 @@ def installations_queue(user: AdminUser = Depends(require_admin)):
             "kit_arrival_date": kit_arrival,
             "install_scheduled_date": scheduled_phase and scheduled_phase.get("scheduled_date"),
             "install_status": install_phase.get("status") if install_phase else "pending",
+            "install_priority": p.get("install_priority"),
         })
 
-    # FIFO: menor kit_arrival_date primeiro; empate → created_at
-    queue.sort(key=lambda x: (x["kit_arrival_date"], x["project_id"]))
-    # Adiciona posição na fila (1-indexed)
+    # Ordem: install_priority ASC (com NULLS LAST), depois kit_arrival_date ASC, empate por id.
+    # Em Python: usar tuplas — None vira (1, 0) pra cair depois de (0, valor).
+    queue.sort(key=lambda x: (
+        (1, 0) if x["install_priority"] is None else (0, x["install_priority"]),
+        x["kit_arrival_date"],
+        x["project_id"],
+    ))
     for i, item in enumerate(queue, start=1):
         item["position"] = i
-
     return queue
+
+
+@router.get("/installations")
+def installations_queue(user: AdminUser = Depends(require_admin)):
+    """Fila FIFO de instalações pendentes — ordem de chegada do kit, com override manual.
+
+    Admin pode reordenar via POST /installations/{id}/move-up|move-down.
+    """
+    return _build_queue(user.company_id)
+
+
+def _swap(company_id: str, project_id: str, direction: str) -> dict:
+    if direction not in ("up", "down"):
+        raise HTTPException(400, "direction deve ser 'up' ou 'down'")
+    queue = _build_queue(company_id)
+    idx = next((i for i, item in enumerate(queue) if item["project_id"] == project_id), None)
+    if idx is None:
+        raise HTTPException(404, "Projeto não está na fila")
+    if direction == "up" and idx == 0:
+        return {"moved": False, "reason": "Já é o primeiro"}
+    if direction == "down" and idx == len(queue) - 1:
+        return {"moved": False, "reason": "Já é o último"}
+
+    new_order = list(queue)
+    target = idx - 1 if direction == "up" else idx + 1
+    new_order[idx], new_order[target] = new_order[target], new_order[idx]
+    for pos, item in enumerate(new_order, start=1):
+        db.table("projects").update({"install_priority": pos}) \
+            .eq("id", item["project_id"]).execute()
+    return {"moved": True}
+
+
+@router.post("/installations/{project_id}/move-up")
+def move_up(project_id: str, user: AdminUser = Depends(require_admin)):
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin pode reordenar a fila")
+    return _swap(user.company_id, project_id, "up")
+
+
+@router.post("/installations/{project_id}/move-down")
+def move_down(project_id: str, user: AdminUser = Depends(require_admin)):
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin pode reordenar a fila")
+    return _swap(user.company_id, project_id, "down")

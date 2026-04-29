@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useDialog } from "@/components/DialogProvider";
 import { useToast } from "@/components/ToastProvider";
+import { useMe } from "@/lib/useMe";
 
 interface QueueItem {
   position: number;
@@ -37,6 +38,7 @@ export default function CronogramaPage() {
   const [err, setErr] = useState<string | null>(null);
   const dialog = useDialog();
   const toast = useToast();
+  const { isAdmin } = useMe();
 
   const reload = () =>
     api.get<QueueItem[]>("/schedule/installations")
@@ -44,6 +46,24 @@ export default function CronogramaPage() {
       .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar"));
 
   useEffect(() => { reload(); }, []);
+
+  async function move(item: QueueItem, direction: "up" | "down") {
+    try {
+      const r = await api.post<{ moved: boolean; reason?: string }>(
+        `/schedule/installations/${item.project_id}/move-${direction}`, {},
+      );
+      if (!r.moved && r.reason) {
+        toast.show({ message: r.reason, tone: "info", duration: 2500 });
+      }
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao reordenar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
 
   async function markInstalled(item: QueueItem) {
     const today = new Date().toISOString().slice(0, 10);
@@ -114,6 +134,7 @@ export default function CronogramaPage() {
         <p className="text-xs text-slate-500 mt-1">
           Ordem FIFO: primeiro kit que chegou, primeiro a instalar. A equipe só pode marcar como
           concluído o <b>#1</b> da lista — o próximo sobe automaticamente.
+          {isAdmin && " O admin pode reordenar manualmente com as setas ▲▼ ao lado da posição."}
         </p>
       </div>
 
@@ -137,15 +158,37 @@ export default function CronogramaPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                          isNext
-                            ? "bg-invictus-accent text-invictus-deep"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {item.position}
-                      </span>
+                      <div className="flex flex-col items-center gap-0.5 shrink-0">
+                        <span
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            isNext
+                              ? "bg-invictus-accent text-invictus-deep"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {item.position}
+                        </span>
+                        {isAdmin && queue && queue.length > 1 && (
+                          <div className="flex flex-col -gap-px">
+                            <button
+                              onClick={() => move(item, "up")}
+                              disabled={item.position === 1}
+                              className="text-[10px] leading-none text-slate-400 hover:text-invictus disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Subir na fila"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() => move(item, "down")}
+                              disabled={item.position === queue.length}
+                              className="text-[10px] leading-none text-slate-400 hover:text-invictus disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Descer na fila"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <div className="min-w-0">
                         <p className="font-bold text-invictus-deep truncate">{item.client.name}</p>
                         <p className="text-xs text-slate-500">
