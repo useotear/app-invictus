@@ -46,8 +46,8 @@ async def update_phase(
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
         raise HTTPException(400, "status inválido")
 
-    # Checklist obrigatório de fotos pra concluir a fase 9 (Instalação concluída).
-    if payload.status == "completed" and phase["phase_number"] == 9:
+    # Checklist obrigatório de fotos pra concluir a fase 6 (Instalação concluída).
+    if payload.status == "completed" and phase["phase_number"] == 6:
         required = {"grid_entry", "inverter", "seal", "panels"}
         labels = {
             "grid_entry": "entrada de rede + plaquinha",
@@ -56,7 +56,7 @@ async def update_phase(
             "panels": "painéis solares",
         }
         photos = db.table("project_photos").select("category") \
-            .eq("project_id", phase["project_id"]).eq("phase_number", 9).execute().data or []
+            .eq("project_id", phase["project_id"]).eq("phase_number", 6).execute().data or []
         have = {p["category"] for p in photos if p.get("category")}
         missing = required - have
         if missing:
@@ -67,9 +67,9 @@ async def update_phase(
                 "Suba as fotos antes de concluir a instalação.",
             )
 
-    # Regra FIFO: só pode marcar "Instalação concluída" (fase 9) depois que
+    # Regra FIFO: só pode marcar "Instalação concluída" (fase 6) depois que
     # todos os projetos com kit entregue antes já tiverem a instalação concluída.
-    if payload.status == "completed" and phase["phase_number"] == 9:
+    if payload.status == "completed" and phase["phase_number"] == 6:
         company_id = phase["project"]["company_id"]
         own_kit = db.table("project_phases").select("completed_date") \
             .eq("project_id", phase["project_id"]).eq("phase_number", 4) \
@@ -86,7 +86,7 @@ async def update_phase(
             for ek in earlier_kits:
                 pid = ek["project_id"]
                 inst = db.table("project_phases").select("status") \
-                    .eq("project_id", pid).eq("phase_number", 9).single().execute().data
+                    .eq("project_id", pid).eq("phase_number", 6).single().execute().data
                 if not inst or inst.get("status") != "completed":
                     blocked.append(pid)
 
@@ -122,13 +122,13 @@ async def update_phase(
             .eq("id", phase["project_id"]).execute()
 
         # Quando "Kit entregue" (fase 4) é concluído, agenda automaticamente a
-        # "Instalação agendada" (fase 8) pra +7 dias. Sempre sobrescreve — admin
+        # "Instalação agendada" (fase 5) pra +7 dias. Sempre sobrescreve — admin
         # pode remarcar manualmente depois pelo botão "Remarcar".
         if phase["phase_number"] == 4:
             kit_date = payload.completed_date or date.today()
             new_sched = (kit_date + timedelta(days=7)).isoformat()
             db.table("project_phases").update({"scheduled_date": new_sched}) \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 8).execute()
+                .eq("project_id", phase["project_id"]).eq("phase_number", 5).execute()
 
         # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído,
         # agenda o app de monitoramento (fase 12) pra +7 dias. Sempre sobrescreve.

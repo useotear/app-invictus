@@ -333,7 +333,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         <ProjectDocuments projectId={params.id} />
 
-        {p.current_phase >= 8 && p.current_phase <= 9 && (
+        {p.current_phase >= 5 && p.current_phase <= 6 && (
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
         )}
 
@@ -351,7 +351,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <ScheduleNoticeCard
             projectId={params.id}
             clientName={p.client.name}
-            currentScheduledDate={p.phases.find((ph) => ph.phase_number === 8)?.scheduled_date ?? null}
+            currentScheduledDate={p.phases.find((ph) => ph.phase_number === 5)?.scheduled_date ?? null}
           />
         )}
 

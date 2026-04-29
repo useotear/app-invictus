@@ -6,8 +6,8 @@ from ..deps import AdminUser, require_admin
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 KIT_DELIVERED_PHASE = 4   # "Kit entregue"
-SCHEDULED_PHASE = 8       # "Instalação agendada"
-INSTALL_DONE_PHASE = 9    # "Instalação concluída"
+SCHEDULED_PHASE = 5       # "Instalação agendada"
+INSTALL_DONE_PHASE = 6    # "Instalação concluída"
 
 
 @router.get("/installations")

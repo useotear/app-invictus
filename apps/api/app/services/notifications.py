@@ -92,12 +92,12 @@ async def notify_upcoming_installs() -> dict:
     from datetime import date, timedelta
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
-    # Projetos com fase 8 agendada pra amanhã e fase 9 ainda não concluída
+    # Projetos com fase 5 agendada pra amanhã e fase 6 ainda não concluída
     phase_rows = db.table("project_phases").select(
         "project_id,scheduled_date,"
         "project:projects!inner(id,current_phase,address,company_id,"
         "client:clients(name,phone))"
-    ).eq("phase_number", 8).eq("scheduled_date", tomorrow).execute().data or []
+    ).eq("phase_number", 5).eq("scheduled_date", tomorrow).execute().data or []
 
     summary = {"date": tomorrow, "projects": 0, "notified": 0, "errors": []}
 
@@ -107,7 +107,7 @@ async def notify_upcoming_installs() -> dict:
         proj = row.get("project")
         if not proj:
             continue
-        if proj.get("current_phase", 0) >= 9:
+        if proj.get("current_phase", 0) >= 6:
             continue  # instalação já concluída
         by_company.setdefault(proj["company_id"], []).append(proj)
 

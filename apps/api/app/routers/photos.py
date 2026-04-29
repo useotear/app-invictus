@@ -57,7 +57,7 @@ async def upload_photo(
     project_id: str,
     file: UploadFile = File(...),
     category: str = Form(..., max_length=30),
-    phase_number: int = Form(9, ge=1, le=13),
+    phase_number: int = Form(6, ge=1, le=13),
     user: AdminUser = Depends(require_admin),
 ):
     _assert_project_access(project_id, user)
@@ -146,7 +146,7 @@ def checklist(project_id: str, user: AdminUser = Depends(require_admin)):
     """Retorna {category: count} das fotos da fase 9 + flag complete."""
     _assert_project_access(project_id, user)
     rows = db.table("project_photos").select("category") \
-        .eq("project_id", project_id).eq("phase_number", 9).execute().data or []
+        .eq("project_id", project_id).eq("phase_number", 6).execute().data or []
     counts: dict[str, int] = {c: 0 for c in REQUIRED_CATEGORIES}
     for r in rows:
         c = r.get("category")

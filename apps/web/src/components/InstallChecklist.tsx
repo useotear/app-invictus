@@ -72,7 +72,7 @@ export function InstallChecklist({
   useEffect(() => {
     if (!photos || !onChange) return;
     const counts = REQUIRED_CATEGORIES.reduce((acc, c) => {
-      acc[c] = photos.filter((p) => p.phase_number === 9 && p.category === c).length;
+      acc[c] = photos.filter((p) => p.phase_number === 6 && p.category === c).length;
       return acc;
     }, {} as Record<Category, number>);
     const missing = REQUIRED_CATEGORIES.filter((c) => counts[c] === 0);
@@ -87,7 +87,7 @@ export function InstallChecklist({
       const fd = new FormData();
       fd.append("file", file);
       fd.append("category", category);
-      fd.append("phase_number", "9");
+      fd.append("phase_number", "6");
       const r = await fetch(`${API_URL}/projects/${projectId}/photos`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token ?? ""}` },
@@ -160,7 +160,7 @@ export function InstallChecklist({
   }
 
   const byCategory = REQUIRED_CATEGORIES.reduce((acc, c) => {
-    acc[c] = photos.filter((p) => p.phase_number === 9 && p.category === c);
+    acc[c] = photos.filter((p) => p.phase_number === 6 && p.category === c);
     return acc;
   }, {} as Record<Category, Photo[]>);
   const missingCount = REQUIRED_CATEGORIES.filter((c) => byCategory[c].length === 0).length;

@@ -37,8 +37,8 @@ function projectType(size: number | null) {
 function phaseLabel(n: number) {
   const map: Record<number, string> = {
     1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Entrada na Celesc", 6: "Análise Técnica",
-    7: "Projeto aprovado", 8: "Instalação agendada", 9: "Instalação concluída",
+    4: "Kit entregue", 5: "Instalação agendada", 6: "Instalação concluída",
+    7: "Entrada na Celesc", 8: "Projeto em análise", 9: "Projeto aprovado",
     10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção",
   };
   return map[n] ?? "Em andamento";
@@ -221,7 +221,7 @@ export default function ClienteDashboard() {
             {nextPhase.scheduled_date ? (
               <>
                 <p className="text-xs text-slate-600 mt-1">Agendado para {fmtDate(nextPhase.scheduled_date)}.</p>
-                {nextPhase.phase_number === 8 && (
+                {nextPhase.phase_number === 5 && (
                   <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
                     ⚠️ A data poderá sofrer alterações, você será avisado.
                   </p>

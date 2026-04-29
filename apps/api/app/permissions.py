@@ -2,19 +2,26 @@
 
 Regra geral: todos leem tudo da sua empresa; writes são restritos pelo papel.
 
+Ordem das fases (após reordenação 0019):
+  1 Contrato | 2 Compra kit | 3 Previsão entrega | 4 Kit entregue
+  5 Instalação agendada | 6 Instalação concluída
+  7 Entrada Celesc | 8 Projeto em análise | 9 Projeto aprovado
+  10 Troca relógio agendada | 11 Sistema ativo
+  12 App de monitoramento | 13 Manutenção
+
 - admin:        tudo
-- seller:       até fase 4 (entrega do kit) + criar/editar cliente e projeto
-- homologation: fases 5, 6, 7, 10, 11 (Celesc + troca de relógio)
-- installer:    fase 9 (marcar instalação concluída) + fotos
-- scheduler:    fases 2, 3, 4 (controle de kit), 8 (agendar instalação), 12 (manutenção)
+- seller:       até fase 4 (entrega do kit)
+- homologation: 7, 8, 9 (Celesc) + 10, 11 (troca de relógio)
+- installer:    fase 6 (marcar instalação concluída) + fotos
+- scheduler:    2, 3, 4 (kit), 5 (agendar instalação), 13 (manutenção)
 """
 
 ROLE_PHASES: dict[str, set[int]] = {
     "admin":        set(range(1, 14)),
     "seller":       {1, 2, 3, 4},
-    "homologation": {5, 6, 7, 10, 11},
-    "installer":    {9},
-    "scheduler":    {2, 3, 4, 8, 12},
+    "homologation": {7, 8, 9, 10, 11},
+    "installer":    {6},
+    "scheduler":    {2, 3, 4, 5, 13},
 }
 
 VALID_ROLES = set(ROLE_PHASES.keys())
