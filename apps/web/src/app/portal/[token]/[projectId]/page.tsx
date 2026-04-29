@@ -32,7 +32,7 @@ function projectType(size: number | null) {
 function phaseBadgeLabel(n: number) {
   const map: Record<number, string> = {
     1: "Contrato assinado", 2: "Kit comprado", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Instalação agendada", 6: "Projeto na Celesc",
+    4: "Kit entregue", 5: "Instalação agendada", 6: "Entrada do projeto",
     7: "Projeto em análise", 8: "Projeto aprovado",
     9: "Instalação concluída", 10: "Troca do relógio agendada",
     11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção agendada",
