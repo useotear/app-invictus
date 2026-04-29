@@ -75,6 +75,30 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     api.get<Seller[]>("/users/sellers").then(setSellers).catch(() => {});
   }, [me?.role]);
 
+  async function editLocationLink() {
+    if (!p) return;
+    const link = await dialog.prompt({
+      title: "Link da localização",
+      message: "Cole o link do Google Maps, Waze ou similar. Deixe em branco pra remover.",
+      type: "text",
+      defaultValue: p.location_link ?? "",
+      placeholder: "https://maps.google.com/...",
+      confirmText: "Salvar",
+    });
+    if (link === null) return;
+    try {
+      await api.patch(`/projects/${params.id}`, { location_link: link || null });
+      toast.show({ message: "Localização atualizada.", tone: "success", duration: 2500 });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
+
   async function changeSeller() {
     const options = [
       { value: "", label: "— sem vendedor —" },
@@ -300,10 +324,23 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <Link href={`/portal/${p.client.access_token}`} className="text-invictus-accent hover:underline">
             🔗 Link do portal
           </Link>
-          {p.location_link && (
-            <a href={p.location_link} target="_blank" rel="noopener noreferrer" className="text-invictus-accent hover:underline">
-              📍 Localização
-            </a>
+          {p.location_link ? (
+            <span className="text-invictus-accent inline-flex items-center gap-1">
+              <a href={p.location_link} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                📍 Localização
+              </a>
+              {canEditProject(me?.role) && (
+                <button onClick={editLocationLink} className="text-white/70 hover:text-white text-[11px]" title="Editar link">
+                  ✏️
+                </button>
+              )}
+            </span>
+          ) : (
+            canEditProject(me?.role) && (
+              <button onClick={editLocationLink} className="text-invictus-accent hover:underline">
+                📍 Adicionar link
+              </button>
+            )
           )}
           <span className="text-white/60">
             Vendedor: <b className="text-white/85">{p.seller?.name ?? "—"}</b>
