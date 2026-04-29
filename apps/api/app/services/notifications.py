@@ -43,11 +43,13 @@ async def dispatch_phase_notifications(
         .eq("event", event).eq("enabled", True).execute().data or []
 
     for tpl in templates:
-        recipients: list[tuple[str, str, str, str]] = []  # (rtype, phone, link, name)
-        if tpl["recipient"] in ("client", "both") and client.get("phone"):
-            recipients.append(("client", client["phone"], portal_link, client["name"]))
-        if tpl["recipient"] in ("seller", "both") and seller and seller.get("phone"):
-            recipients.append(("seller", seller["phone"], admin_link, seller["name"]))
+        # Lista de destinatários sem filtrar por phone — push não precisa de phone.
+        # phone pode ser None; a branch de WhatsApp verifica e loga "sem phone" se faltar.
+        recipients: list[tuple[str, str | None, str, str]] = []  # (rtype, phone, link, name)
+        if tpl["recipient"] in ("client", "both"):
+            recipients.append(("client", client.get("phone"), portal_link, client["name"]))
+        if tpl["recipient"] in ("seller", "both") and seller:
+            recipients.append(("seller", seller.get("phone"), admin_link, seller["name"]))
 
         for rtype, phone, link, _name in recipients:
             message = _render(tpl["template"], nome=client["name"], data=str(scheduled), link=link)
@@ -61,6 +63,8 @@ async def dispatch_phase_notifications(
             }
             try:
                 if tpl["channel"] == "whatsapp":
+                    if not phone:
+                        raise RuntimeError(f"{rtype} sem telefone cadastrado")
                     await send_whatsapp(phone, message)
                 elif tpl["channel"] == "push":
                     if rtype == "client":
@@ -71,6 +75,8 @@ async def dispatch_phase_notifications(
                         subs = db.table("push_subscriptions").select("*") \
                             .eq("user_id", seller["id"]).execute().data or []
                         url = f"/admin/projects/{project_id}"
+                    if not subs:
+                        raise RuntimeError(f"{rtype} sem dispositivo inscrito em push")
                     for sub in subs:
                         send_push(sub, title="Invictus Solar", body=message, url=url)
                 log["status"] = "sent"

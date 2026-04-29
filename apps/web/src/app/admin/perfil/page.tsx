@@ -143,42 +143,6 @@ export default function PerfilPage() {
               ✓ Você recebe o aviso diário das instalações de amanhã.
             </p>
           )}
-
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase mb-2">
-              Notificações push
-            </p>
-            <button
-              onClick={async () => {
-                try {
-                  const r = await api.post<{ ok: boolean; sent: number; subscriptions: number; reason?: string }>(
-                    "/push/test", { title: "Teste", body: "Push do painel funcionando!", url: "/admin" },
-                  );
-                  if (!r.ok && r.reason) {
-                    toast.show({ message: r.reason, tone: "error", duration: 6000 });
-                  } else {
-                    toast.show({
-                      message: `Push enviado (${r.sent}/${r.subscriptions} dispositivos).`,
-                      tone: r.ok ? "success" : "error",
-                      duration: 4000,
-                    });
-                  }
-                } catch (e) {
-                  toast.show({
-                    message: e instanceof Error ? e.message : "Erro",
-                    tone: "error",
-                    duration: 5000,
-                  });
-                }
-              }}
-              className="text-xs px-3 py-1.5 border border-invictus text-invictus rounded-lg hover:bg-invictus hover:text-white transition"
-            >
-              📲 Enviar push de teste pra mim
-            </button>
-            <p className="text-[11px] text-slate-400 mt-2">
-              Aceite notificações no browser primeiro. No PWA, assine só uma vez.
-            </p>
-          </div>
         </div>
       </section>
 

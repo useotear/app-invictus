@@ -46,6 +46,25 @@ def subscribe(request: Request, payload: SubscribeIn):
     return {"ok": True}
 
 
+class UserSubscribeIn(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2048)
+    p256dh: str = Field(..., max_length=256)
+    auth: str = Field(..., max_length=64)
+
+
+@router.post("/subscribe-user")
+@limiter.limit("20/minute")
+def subscribe_user(request: Request, payload: UserSubscribeIn, user: AdminUser = Depends(require_admin)):
+    """Inscreve o usuário (admin/vendedor/etc) pra receber push do app admin."""
+    db.table("push_subscriptions").upsert({
+        "user_id": user.user_id,
+        "endpoint": payload.endpoint,
+        "p256dh": payload.p256dh,
+        "auth": payload.auth,
+    }, on_conflict="endpoint").execute()
+    return {"ok": True}
+
+
 class TestPushIn(BaseModel):
     client_id: str | None = None
     user_id: str | None = None

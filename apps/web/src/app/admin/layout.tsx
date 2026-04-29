@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthGuard, signOut } from "./AuthGuard";
+import { AdminPushSubscribe } from "./push";
 import { DialogProvider } from "@/components/DialogProvider";
 import { ToastProvider } from "@/components/ToastProvider";
 import { useMe } from "@/lib/useMe";
@@ -43,6 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <AuthGuard>
       <ToastProvider>
       <DialogProvider>
+      {!isLogin && <AdminPushSubscribe />}
       <div className="min-h-screen flex flex-col bg-invictus-bg">
         {!isLogin && (
           <header className="bg-invictus text-white">
