@@ -37,6 +37,7 @@ interface ProjectForm {
   address: string;
   location_link: string;
   installation_notes: string;
+  materials: string;
   kwp: string;
   value: string;
   paid: string;
@@ -49,6 +50,7 @@ const EMPTY_PROJECT: ProjectForm = {
   address: "",
   location_link: "",
   installation_notes: "",
+  materials: "",
   kwp: "",
   value: "",
   paid: "",
@@ -120,6 +122,7 @@ export default function ClientsPage() {
             address: pf.address || null,
             location_link: pf.location_link || null,
             installation_notes: pf.installation_notes || null,
+            materials: pf.materials || null,
             system_size_kwp: pf.kwp ? Number(pf.kwp) : null,
             contract_value: pf.value ? Number(pf.value) : null,
             paid_amount: pf.paid ? Number(pf.paid) : 0,
@@ -448,6 +451,16 @@ export default function ClientsPage() {
                 />
               </Field>
 
+              <Field label="Materiais do kit" hint="Itens que vão no kit (módulos, inversor, micro etc).">
+                <textarea
+                  rows={2}
+                  placeholder="Ex: 40 módulos 550W Canadian, Inversor GoodWe 4 MPPT 8kW"
+                  value={form.project.materials}
+                  onChange={(e) => setForm({ ...form, project: { ...form.project, materials: e.target.value } })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus resize-y"
+                />
+              </Field>
+
               <Field label="Necessidades da obra" hint="Só a equipe vê — materiais extras, apoio, equipamentos específicos etc.">
                 <textarea
                   rows={3}
@@ -638,6 +651,8 @@ export default function ClientsPage() {
                       value={pf.address} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, address: e.target.value }})} />
                     <input type="url" placeholder="Link da localização (Google Maps) — opcional" className="border rounded px-2 py-1 w-full"
                       value={pf.location_link} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, location_link: e.target.value }})} />
+                    <textarea rows={2} placeholder="Materiais do kit (40 módulos, Inversor GoodWe 4 MPPT…)" className="border rounded px-2 py-1 w-full resize-y"
+                      value={pf.materials} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, materials: e.target.value }})} />
                     <textarea rows={2} placeholder="Necessidades da obra — visível só pra equipe (materiais extras, apoio…)" className="border rounded px-2 py-1 w-full resize-y"
                       value={pf.installation_notes} onChange={e => setProjectForm({ ...projectForm, [c.id]: { ...pf, installation_notes: e.target.value }})} />
                     <div className="grid grid-cols-2 gap-2">

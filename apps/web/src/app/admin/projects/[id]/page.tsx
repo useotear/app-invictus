@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Phase, TOTAL_PHASES } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
 import { InstallationNotesCard } from "@/components/InstallationNotesCard";
+import { ProjectTextCard } from "@/components/ProjectTextCard";
 import { InstallChecklist, ChecklistState } from "@/components/InstallChecklist";
 import { PhasePhotos } from "@/components/PhasePhotos";
 import { ScheduleNoticeCard } from "@/components/ScheduleNoticeCard";
@@ -28,6 +29,7 @@ interface ProjectDetail {
   address: string | null;
   location_link: string | null;
   installation_notes: string | null;
+  materials: string | null;
   system_size_kwp: number | null;
   contract_value: number | null;
   paid_amount: number | null;
@@ -488,6 +490,17 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <span className="text-xs font-semibold text-invictus">{pct}% pago</span>
           </div>
         </div>
+
+        <ProjectTextCard
+          projectId={params.id}
+          field="materials"
+          title="Materiais do kit"
+          hint="Itens que compõem o kit (módulos, inversor, micro etc)."
+          placeholder="Ex: 40 módulos 550W Canadian, Inversor GoodWe 4 MPPT 8kW"
+          emptyText="Nenhum material descrito ainda."
+          initial={p.materials ?? ""}
+          onSaved={(v) => setP({ ...p, materials: v })}
+        />
 
         <InstallationNotesCard
           projectId={params.id}
