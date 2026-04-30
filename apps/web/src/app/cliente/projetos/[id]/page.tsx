@@ -132,7 +132,7 @@ export default function ClienteProjeto({ params }: { params: { id: string } }) {
             <h3 className="text-lg font-bold text-invictus mt-1">{nextPhase.phase_name}</h3>
             {nextPhase.scheduled_date && (
               <p className="text-sm text-slate-600 mt-2">
-                {new Date(nextPhase.scheduled_date).toLocaleDateString("pt-BR", {
+                {new Date(nextPhase.scheduled_date + (nextPhase.scheduled_date.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", {
                   day: "2-digit", month: "long", year: "numeric",
                 })}
               </p>

@@ -10,7 +10,7 @@ function dotClasses(status: Phase["status"]) {
 
 function fmt(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
 export function Timeline({ phases }: { phases: Phase[] }) {

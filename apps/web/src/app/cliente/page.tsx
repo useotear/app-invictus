@@ -46,8 +46,15 @@ function phaseLabel(n: number) {
 
 function fmtDate(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", {
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", {
     weekday: "long", day: "2-digit", month: "long",
+  });
+}
+
+function fmtDateShort(d: string | null) {
+  if (!d) return "";
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
   });
 }
 
@@ -128,6 +135,9 @@ export default function ClienteDashboard() {
   const nextPhase = primary.phases.find((p) => p.status !== "completed");
   const currentLabel = phaseLabel(primary.current_phase);
   const totalDocs = projects.reduce((s, p) => s + p.documents_count, 0);
+  // Fase 5 = Instalação agendada. Mostra a data se ainda não estiver instalada (current_phase < 9).
+  const installPhase = primary.phases.find((p) => p.phase_number === 5);
+  const installDate = primary.current_phase < 9 ? installPhase?.scheduled_date ?? null : null;
 
   return (
     <main className="min-h-screen bg-invictus-bg pb-28">
@@ -192,9 +202,21 @@ export default function ClienteDashboard() {
                   <p className="text-sm text-slate-500 mt-0.5">{primary.address}</p>
                 )}
               </div>
-              <span className="shrink-0 px-3 py-1 bg-invictus-accent/20 text-invictus-deep text-xs font-bold rounded-full">
-                Fase {primary.current_phase}/{TOTAL_PHASES}
-              </span>
+              <div className="shrink-0 flex flex-col items-end gap-1">
+                {installDate && (
+                  <div className="bg-invictus-accent/15 text-invictus-deep px-3 py-1.5 rounded-xl text-right">
+                    <p className="text-[9px] font-semibold tracking-widest uppercase opacity-70 leading-none">
+                      Instalação agendada
+                    </p>
+                    <p className="text-base font-bold leading-tight mt-0.5">
+                      {fmtDateShort(installDate)}
+                    </p>
+                  </div>
+                )}
+                <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
+                  Fase {primary.current_phase}/{TOTAL_PHASES}
+                </span>
+              </div>
             </div>
             <div className="mt-4">
               <div className="flex justify-between text-xs mb-1.5">

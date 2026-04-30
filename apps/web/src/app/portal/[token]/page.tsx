@@ -77,7 +77,7 @@ function phaseLabel(n: number) {
 
 function fmtDate(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", {
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", {
     weekday: "long", day: "2-digit", month: "long",
   });
 }

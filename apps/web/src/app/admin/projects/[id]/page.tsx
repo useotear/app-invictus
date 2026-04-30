@@ -42,7 +42,7 @@ interface ProjectDetail {
 
 function fmt(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 function fmtBRL(v: number | null | undefined) {
@@ -297,7 +297,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       await api.patch(`/phases/${phase.id}`, payload);
       toast.show({
         message: d
-          ? `${isCompleted ? "Conclusão" : "Agendamento"}: ${new Date(d).toLocaleDateString("pt-BR")}`
+          ? `${isCompleted ? "Conclusão" : "Agendamento"}: ${new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR")}`
           : `${isCompleted ? "Data de conclusão" : "Agendamento"} removido`,
         tone: "success",
         duration: 3000,
