@@ -2,27 +2,30 @@
 
 Regra geral: todos leem tudo da sua empresa; writes são restritos pelo papel.
 
-Ordem das fases (após reordenação 0020):
-  1 Contrato | 2 Compra kit | 3 Previsão entrega | 4 Kit entregue
-  5 Instalação agendada
-  6 Entrada Celesc | 7 Projeto em análise | 8 Projeto aprovado
-  9 Instalação concluída
-  10 Troca relógio agendada | 11 Sistema ativo
-  12 App de monitoramento | 13 Manutenção
+Ordem das fases (após 0022):
+  1 Contrato | 2 Compra kit | 3 lança venda RP (admin only)
+  4 Previsão entrega | 5 Kit entregue | 6 Instalação agendada
+  7 Entrada Celesc | 8 Projeto em análise | 9 Projeto aprovado
+  10 Instalação concluída
+  11 Troca relógio agendada | 12 Sistema ativo
+  13 App de monitoramento | 14 Manutenção
 
-- admin:        tudo
-- seller:       até fase 4 (entrega do kit)
-- homologation: 6, 7, 8 (Celesc) + 10, 11 (troca de relógio)
-- installer:    fase 9 (marcar instalação concluída) + fotos
-- scheduler:    2, 3, 4 (kit), 5 (agendar instalação), 13 (manutenção)
+- admin:        tudo (única role que vê fase 3)
+- seller:       1, 2, 4, 5 (até entrega do kit, pula fase 3)
+- homologation: 7, 8, 9 (Celesc) + 11, 12 (troca de relógio)
+- installer:    fase 10 (marcar instalação concluída) + fotos
+- scheduler:    2, 4, 5 (kit), 6 (agendar instalação), 14 (manutenção)
 """
 
+# Fases que só admin enxerga e edita
+ADMIN_ONLY_PHASES: set[int] = {3}
+
 ROLE_PHASES: dict[str, set[int]] = {
-    "admin":        set(range(1, 14)),
-    "seller":       {1, 2, 3, 4},
-    "homologation": {6, 7, 8, 10, 11},
-    "installer":    {9},
-    "scheduler":    {2, 3, 4, 5, 13},
+    "admin":        set(range(1, 15)),
+    "seller":       {1, 2, 4, 5},
+    "homologation": {7, 8, 9, 11, 12},
+    "installer":    {10},
+    "scheduler":    {2, 4, 5, 6, 14},
 }
 
 VALID_ROLES = set(ROLE_PHASES.keys())

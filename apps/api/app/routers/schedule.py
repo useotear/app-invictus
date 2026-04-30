@@ -5,9 +5,9 @@ from ..deps import AdminUser, require_admin
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
-KIT_DELIVERED_PHASE = 4   # "Kit entregue"
-SCHEDULED_PHASE = 5       # "Instalação agendada"
-INSTALL_DONE_PHASE = 9    # "Instalação concluída"
+KIT_DELIVERED_PHASE = 5    # "Kit entregue"
+SCHEDULED_PHASE = 6        # "Instalação agendada"
+INSTALL_DONE_PHASE = 10    # "Instalação concluída"
 
 
 def _build_queue(company_id: str) -> list[dict]:

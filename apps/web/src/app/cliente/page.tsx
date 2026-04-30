@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
-import { Phase, PHASE_DESCRIPTIONS, TOTAL_PHASES } from "@/lib/phases";
+import { ADMIN_ONLY_PHASES, Phase, PHASE_DESCRIPTIONS, TOTAL_PHASES } from "@/lib/phases";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ClienteRealtime } from "./push";
 
@@ -36,10 +36,11 @@ function projectType(size: number | null) {
 
 function phaseLabel(n: number) {
   const map: Record<number, string> = {
-    1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Instalação agendada", 6: "Entrada do projeto",
-    7: "Projeto em análise", 8: "Projeto aprovado", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção",
+    1: "Contrato assinado", 2: "Compra do kit", 3: "lança venda RP",
+    4: "Previsão de entrega", 5: "Kit entregue", 6: "Instalação agendada",
+    7: "Entrada do projeto", 8: "Projeto em análise", 9: "Projeto aprovado",
+    10: "Instalação concluída", 11: "Troca do relógio agendada", 12: "Sistema ativo",
+    13: "App de monitoramento", 14: "Manutenção",
   };
   return map[n] ?? "Em andamento";
 }
@@ -130,14 +131,20 @@ export default function ClienteDashboard() {
 
   const primary = projects[0];
   const others = projects.slice(1);
-  const pct = Math.round((primary.current_phase / TOTAL_PHASES) * 100);
   const kwp = primary.system_size_kwp ?? 0;
-  const nextPhase = primary.phases.find((p) => p.status !== "completed");
+  // Cliente não vê fases admin-only — filtramos pra exibição e progresso.
+  const visiblePhases = primary.phases.filter((p) => !ADMIN_ONLY_PHASES.has(p.phase_number));
+  const visibleTotal = visiblePhases.length || (TOTAL_PHASES - ADMIN_ONLY_PHASES.size);
+  const visibleCompleted = visiblePhases.filter((p) => p.status === "completed").length;
+  const pct = Math.round((visibleCompleted / visibleTotal) * 100);
+  const visiblePosition = visiblePhases.findIndex((p) => p.phase_number === primary.current_phase) + 1
+    || visibleCompleted + 1;
+  const nextPhase = visiblePhases.find((p) => p.status !== "completed");
   const currentLabel = phaseLabel(primary.current_phase);
   const totalDocs = projects.reduce((s, p) => s + p.documents_count, 0);
-  // Fase 5 = Instalação agendada. Mostra a data se ainda não estiver instalada (current_phase < 9).
-  const installPhase = primary.phases.find((p) => p.phase_number === 5);
-  const installDate = primary.current_phase < 9 ? installPhase?.scheduled_date ?? null : null;
+  // Fase 6 = Instalação agendada. Mostra a data se ainda não estiver instalada (current_phase < 10).
+  const installPhase = primary.phases.find((p) => p.phase_number === 6);
+  const installDate = primary.current_phase < 10 ? installPhase?.scheduled_date ?? null : null;
 
   return (
     <main className="min-h-screen bg-invictus-bg pb-28">
@@ -165,7 +172,7 @@ export default function ClienteDashboard() {
       >
         <div className="flex gap-1 mb-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => {
-            const segActive = i < Math.ceil((primary.current_phase / TOTAL_PHASES) * 6);
+            const segActive = i < Math.ceil((visiblePosition / visibleTotal) * 6);
             return (
               <span
                 key={i}
@@ -176,14 +183,14 @@ export default function ClienteDashboard() {
             );
           })}
         </div>
-        <p className="text-xs text-white/75">Fase {primary.current_phase} de {TOTAL_PHASES}</p>
+        <p className="text-xs text-white/75">Fase {visiblePosition} de {visibleTotal}</p>
         <h1 className="text-4xl font-bold mt-1 leading-tight">
           Olá, {me.name.split(" ").slice(0, 2).join(" ")}
         </h1>
         <p className="text-sm text-white/80 mt-2">
           {projects.length > 1
             ? `Você tem ${projects.length} projetos em andamento.`
-            : `Seu sistema está na fase ${primary.current_phase} de ${TOTAL_PHASES}`}
+            : `Seu sistema está na fase ${visiblePosition} de ${visibleTotal}`}
         </p>
       </section>
 
@@ -214,7 +221,7 @@ export default function ClienteDashboard() {
                   </div>
                 )}
                 <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
-                  Fase {primary.current_phase}/{TOTAL_PHASES}
+                  Fase {visiblePosition}/{visibleTotal}
                 </span>
               </div>
             </div>
@@ -243,7 +250,7 @@ export default function ClienteDashboard() {
             {nextPhase.scheduled_date ? (
               <>
                 <p className="text-xs text-slate-600 mt-1">Agendado para {fmtDate(nextPhase.scheduled_date)}.</p>
-                {nextPhase.phase_number === 5 && (
+                {nextPhase.phase_number === 6 && (
                   <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
                     ⚠️ A data poderá sofrer alterações, você será avisado.
                   </p>
@@ -288,8 +295,8 @@ export default function ClienteDashboard() {
                     className="flex items-center gap-3 bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition"
                   >
                     <div className="shrink-0 w-12 h-12 rounded-xl bg-invictus-accent/10 text-invictus-deep flex flex-col items-center justify-center font-bold">
-                      <span className="text-lg leading-none">{p.current_phase}</span>
-                      <span className="text-[9px] opacity-80">/{TOTAL_PHASES}</span>
+                      <span className="text-lg leading-none">{p.current_phase > 3 ? p.current_phase - 1 : p.current_phase}</span>
+                      <span className="text-[9px] opacity-80">/{visibleTotal}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-invictus-deep truncate">

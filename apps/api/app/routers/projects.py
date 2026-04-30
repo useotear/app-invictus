@@ -179,10 +179,10 @@ async def reschedule_notice(
     if not client:
         raise HTTPException(404, "Cliente não encontrado")
 
-    # Atualiza a data da fase 5 (Instalação agendada) se foi pedido
+    # Atualiza a data da fase 6 (Instalação agendada) se foi pedido
     if payload.new_scheduled_date:
         db.table("project_phases").update({"scheduled_date": payload.new_scheduled_date}) \
-            .eq("project_id", project_id).eq("phase_number", 5).execute()
+            .eq("project_id", project_id).eq("phase_number", 6).execute()
 
     masked_phone = f"****{client['phone'][-4:]}" if client.get("phone") and len(client["phone"]) >= 4 else "****"
 

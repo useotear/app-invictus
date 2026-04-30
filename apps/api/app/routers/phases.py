@@ -46,8 +46,8 @@ async def update_phase(
     if payload.status and payload.status not in ("pending", "in_progress", "completed"):
         raise HTTPException(400, "status inválido")
 
-    # Checklist obrigatório de fotos pra concluir a fase 9 (Instalação concluída).
-    if payload.status == "completed" and phase["phase_number"] == 9:
+    # Checklist obrigatório de fotos pra concluir a fase 10 (Instalação concluída).
+    if payload.status == "completed" and phase["phase_number"] == 10:
         required = {"grid_entry", "inverter", "seal", "panels"}
         labels = {
             "grid_entry": "entrada de rede + plaquinha",
@@ -56,7 +56,7 @@ async def update_phase(
             "panels": "painéis solares",
         }
         photos = db.table("project_photos").select("category") \
-            .eq("project_id", phase["project_id"]).eq("phase_number", 9).execute().data or []
+            .eq("project_id", phase["project_id"]).eq("phase_number", 10).execute().data or []
         have = {p["category"] for p in photos if p.get("category")}
         missing = required - have
         if missing:
@@ -67,10 +67,10 @@ async def update_phase(
                 "Suba as fotos antes de concluir a instalação.",
             )
 
-    # Regra FIFO: só pode marcar "Instalação concluída" (fase 9) se este projeto
+    # Regra FIFO: só pode marcar "Instalação concluída" (fase 10) se este projeto
     # for o primeiro da fila de instalação. Respeita a ordem manual definida
     # pelo admin (install_priority) quando preenchida.
-    if payload.status == "completed" and phase["phase_number"] == 9:
+    if payload.status == "completed" and phase["phase_number"] == 10:
         from .schedule import _build_queue
         company_id = phase["project"]["company_id"]
         queue = _build_queue(company_id)
@@ -113,28 +113,28 @@ async def update_phase(
             if ap["phase_number"] == phase["phase_number"]:
                 ap["status"] = payload.status
         pending = [p_["phase_number"] for p_ in all_phases if p_["status"] != "completed"]
-        new_current = min(pending) if pending else 13
+        new_current = min(pending) if pending else 14
         db.table("projects").update({"current_phase": new_current}) \
             .eq("id", phase["project_id"]).execute()
 
     if payload.status == "completed":
 
-        # Quando "Kit entregue" (fase 4) é concluído, agenda automaticamente a
-        # "Instalação agendada" (fase 5) pra +7 dias. Sempre sobrescreve — admin
+        # Quando "Kit entregue" (fase 5) é concluído, agenda automaticamente a
+        # "Instalação agendada" (fase 6) pra +7 dias. Sempre sobrescreve — admin
         # pode remarcar manualmente depois pelo botão "Remarcar".
-        if phase["phase_number"] == 4:
+        if phase["phase_number"] == 5:
             kit_date = payload.completed_date or date.today()
             new_sched = (kit_date + timedelta(days=7)).isoformat()
             db.table("project_phases").update({"scheduled_date": new_sched}) \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 5).execute()
+                .eq("project_id", phase["project_id"]).eq("phase_number", 6).execute()
 
-        # Quando "Relógio trocado / Sistema ativo" (fase 11) é concluído,
-        # agenda o app de monitoramento (fase 12) pra +7 dias. Sempre sobrescreve.
-        if phase["phase_number"] == 11:
+        # Quando "Relógio trocado / Sistema ativo" (fase 12) é concluído,
+        # agenda o app de monitoramento (fase 13) pra +7 dias. Sempre sobrescreve.
+        if phase["phase_number"] == 12:
             meter_date = payload.completed_date or date.today()
             new_sched = (meter_date + timedelta(days=7)).isoformat()
             db.table("project_phases").update({"scheduled_date": new_sched}) \
-                .eq("project_id", phase["project_id"]).eq("phase_number", 12).execute()
+                .eq("project_id", phase["project_id"]).eq("phase_number", 13).execute()
 
         bg.add_task(
             dispatch_phase_notifications,

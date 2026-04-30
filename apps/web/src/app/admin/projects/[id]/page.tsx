@@ -497,14 +497,14 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         <ProjectDocuments projectId={params.id} />
 
-        {p.current_phase >= 5 && p.current_phase <= 9 && (
+        {p.current_phase >= 6 && p.current_phase <= 10 && (
           <InstallChecklist projectId={params.id} onChange={setChecklist} />
         )}
 
-        {p.current_phase >= 13 && (
+        {p.current_phase >= 14 && (
           <PhasePhotos
             projectId={params.id}
-            phaseNumber={13}
+            phaseNumber={14}
             title="Fotos da manutenção"
             hint="Anexe fotos da visita de manutenção (estado dos painéis, inversor, fiação, etc)."
             category="other"
@@ -515,7 +515,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <ScheduleNoticeCard
             projectId={params.id}
             clientName={p.client.name}
-            currentScheduledDate={p.phases.find((ph) => ph.phase_number === 5)?.scheduled_date ?? null}
+            currentScheduledDate={p.phases.find((ph) => ph.phase_number === 6)?.scheduled_date ?? null}
           />
         )}
 

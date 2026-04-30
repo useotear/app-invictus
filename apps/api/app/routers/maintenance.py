@@ -12,14 +12,14 @@ router = APIRouter(prefix="/cron", tags=["cron"])
 
 @router.post("/maintenance-check", dependencies=[Depends(require_cron_secret)])
 async def maintenance_check(bg: BackgroundTasks):
-    """Roda diário. Projetos instalados há exatamente 1 ano → fase 13 (Manutenção)."""
+    """Roda diário. Projetos instalados há exatamente 1 ano → fase 14 (Manutenção)."""
     target = (date.today() - timedelta(days=365)).isoformat()
     projects = db.table("projects").select("id,installed_at") \
         .gte("installed_at", f"{target}T00:00:00") \
         .lte("installed_at", f"{target}T23:59:59") \
         .execute().data or []
     for p in projects:
-        bg.add_task(dispatch_phase_notifications, p["id"], 13)
+        bg.add_task(dispatch_phase_notifications, p["id"], 14)
     return {"triggered": len(projects)}
 
 

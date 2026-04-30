@@ -20,10 +20,11 @@ type Filter = "all" | "in_progress";
 
 function phaseLabel(n: number) {
   const map: Record<number, string> = {
-    1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Instalação agendada", 6: "Entrada do projeto",
-    7: "Projeto em análise", 8: "Projeto aprovado", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção agendada",
+    1: "Contrato assinado", 2: "Compra do kit", 3: "lança venda RP",
+    4: "Previsão de entrega", 5: "Kit entregue", 6: "Instalação agendada",
+    7: "Entrada do projeto", 8: "Projeto em análise", 9: "Projeto aprovado",
+    10: "Instalação concluída", 11: "Troca do relógio agendada", 12: "Sistema ativo",
+    13: "App de monitoramento", 14: "Manutenção agendada",
   };
   return map[n] ?? "—";
 }

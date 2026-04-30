@@ -15,11 +15,11 @@ export interface Me {
 }
 
 const ROLE_PHASES: Record<Role, Set<number>> = {
-  admin: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
-  seller: new Set([1, 2, 3, 4]),
-  homologation: new Set([6, 7, 8, 10, 11]),
-  installer: new Set([9]),
-  scheduler: new Set([2, 3, 4, 5, 13]),
+  admin: new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+  seller: new Set([1, 2, 4, 5]),
+  homologation: new Set([7, 8, 9, 11, 12]),
+  installer: new Set([10]),
+  scheduler: new Set([2, 4, 5, 6, 14]),
 };
 
 export function canEditPhase(role: Role | undefined, phase: number): boolean {

@@ -82,7 +82,7 @@ export default function CronogramaPage() {
       const project = await api.get<{ phases: { id: string; phase_number: number }[] }>(
         `/projects/${item.project_id}`,
       );
-      const installPhase = project.phases.find((p) => p.phase_number === 9);
+      const installPhase = project.phases.find((p) => p.phase_number === 10);
       if (!installPhase) {
         toast.show({ message: "Fase de instalação não encontrada.", tone: "error" });
         return;

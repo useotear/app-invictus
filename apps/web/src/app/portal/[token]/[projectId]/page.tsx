@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Timeline } from "@/components/Timeline";
 import { API_URL } from "@/lib/supabase";
-import { Phase, TOTAL_PHASES } from "@/lib/phases";
+import { ADMIN_ONLY_PHASES, Phase, TOTAL_PHASES } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -31,11 +31,11 @@ function projectType(size: number | null) {
 
 function phaseBadgeLabel(n: number) {
   const map: Record<number, string> = {
-    1: "Contrato assinado", 2: "Kit comprado", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Instalação agendada", 6: "Entrada do projeto",
-    7: "Projeto em análise", 8: "Projeto aprovado",
-    9: "Instalação concluída", 10: "Troca do relógio agendada",
-    11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção agendada",
+    1: "Contrato assinado", 2: "Kit comprado", 3: "lança venda RP",
+    4: "Previsão de entrega", 5: "Kit entregue", 6: "Instalação agendada",
+    7: "Entrada do projeto", 8: "Projeto em análise", 9: "Projeto aprovado",
+    10: "Instalação concluída", 11: "Troca do relógio agendada",
+    12: "Sistema ativo", 13: "App de monitoramento", 14: "Manutenção agendada",
   };
   return map[n] ?? "Em andamento";
 }
@@ -54,6 +54,10 @@ export default async function PortalProject({
 
   const kwp = project.system_size_kwp ?? 0;
   const monthlyEstimate = Math.round(kwp * 125);
+  const visiblePhases = project.phases.filter((p) => !ADMIN_ONLY_PHASES.has(p.phase_number));
+  const visibleTotal = visiblePhases.length || (TOTAL_PHASES - ADMIN_ONLY_PHASES.size);
+  const visiblePosition = visiblePhases.findIndex((p) => p.phase_number === project.current_phase) + 1
+    || visiblePhases.filter((p) => p.status === "completed").length + 1;
 
   return (
     <main className="min-h-screen bg-invictus-bg pb-10">
@@ -81,7 +85,7 @@ export default async function PortalProject({
             <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">kWh/mês estimado</p>
           </div>
           <div className="bg-white rounded-xl shadow-card p-3">
-            <p className="text-xl font-bold text-invictus-accent">{project.current_phase}/{TOTAL_PHASES}</p>
+            <p className="text-xl font-bold text-invictus-accent">{visiblePosition}/{visibleTotal}</p>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">fase atual</p>
           </div>
         </div>
@@ -105,7 +109,7 @@ export default async function PortalProject({
 
         <div className="bg-white rounded-2xl shadow-card p-5">
           <h3 className="font-bold text-invictus mb-4">Andamento da instalação</h3>
-          <Timeline phases={project.phases} />
+          <Timeline phases={visiblePhases} />
         </div>
       </div>
     </main>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PortalRealtime } from "./realtime";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { API_URL } from "@/lib/supabase";
-import { Phase, PHASE_DESCRIPTIONS, TOTAL_PHASES } from "@/lib/phases";
+import { ADMIN_ONLY_PHASES, Phase, PHASE_DESCRIPTIONS, TOTAL_PHASES } from "@/lib/phases";
 
 interface Project {
   id: string;
@@ -67,10 +67,11 @@ function projectType(size: number | null) {
 
 function phaseLabel(n: number) {
   const map: Record<number, string> = {
-    1: "Contrato assinado", 2: "Compra do kit", 3: "Kit a caminho",
-    4: "Kit entregue", 5: "Instalação agendada", 6: "Entrada do projeto",
-    7: "Projeto em análise", 8: "Projeto aprovado", 9: "Instalação concluída",
-    10: "Troca do relógio agendada", 11: "Sistema ativo", 12: "App de monitoramento", 13: "Manutenção",
+    1: "Contrato assinado", 2: "Compra do kit", 3: "lança venda RP",
+    4: "Previsão de entrega", 5: "Kit entregue", 6: "Instalação agendada",
+    7: "Entrada do projeto", 8: "Projeto em análise", 9: "Projeto aprovado",
+    10: "Instalação concluída", 11: "Troca do relógio agendada", 12: "Sistema ativo",
+    13: "App de monitoramento", 14: "Manutenção",
   };
   return map[n] ?? "Em andamento";
 }
@@ -135,7 +136,12 @@ export default async function Portal({ params }: { params: { token: string } }) 
 
   const primary = projects[0];
   const others = projects.slice(1);
-  const pct = Math.round((primary.current_phase / TOTAL_PHASES) * 100);
+  const visiblePhases = primary.phases.filter((p) => !ADMIN_ONLY_PHASES.has(p.phase_number));
+  const visibleTotal = visiblePhases.length || (TOTAL_PHASES - ADMIN_ONLY_PHASES.size);
+  const visibleCompleted = visiblePhases.filter((p) => p.status === "completed").length;
+  const visiblePosition = visiblePhases.findIndex((p) => p.phase_number === primary.current_phase) + 1
+    || visibleCompleted + 1;
+  const pct = Math.round((visibleCompleted / visibleTotal) * 100);
   const kwp = primary.system_size_kwp ?? 0;
   // Estimativas: yield SC ~1,40 MWh/kWp/ano, fator SIN 2024 ~0,076 tCO2/MWh.
   // Tarifa por porte: B1 residencial (R$0,85), comercial pequeno (R$0,75), Grupo A (R$0,60).
@@ -174,7 +180,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
       >
         <div className="flex gap-1 mb-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => {
-            const segActive = i < Math.ceil((primary.current_phase / TOTAL_PHASES) * 6);
+            const segActive = i < Math.ceil((visiblePosition / visibleTotal) * 6);
             return (
               <span
                 key={i}
@@ -185,14 +191,14 @@ export default async function Portal({ params }: { params: { token: string } }) 
             );
           })}
         </div>
-        <p className="text-xs text-white/75">Fase {primary.current_phase} de {TOTAL_PHASES}</p>
+        <p className="text-xs text-white/75">Fase {visiblePosition} de {visibleTotal}</p>
         <h1 className="text-4xl font-bold mt-1 leading-tight">
           Olá, {client.name.split(" ").slice(0, 2).join(" ")}
         </h1>
         <p className="text-sm text-white/80 mt-2">
           {projects.length > 1
             ? `Você tem ${projects.length} projetos em andamento.`
-            : `Seu sistema está na fase ${primary.current_phase} de ${TOTAL_PHASES}`}
+            : `Seu sistema está na fase ${visiblePosition} de ${visibleTotal}`}
         </p>
       </section>
 
@@ -222,7 +228,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
                 )}
               </div>
               <span className="shrink-0 px-3 py-1 bg-invictus-accent/20 text-invictus-deep text-xs font-bold rounded-full">
-                Fase {primary.current_phase}/{TOTAL_PHASES}
+                Fase {visiblePosition}/{visibleTotal}
               </span>
             </div>
             <div className="mt-4">
@@ -343,7 +349,7 @@ export default async function Portal({ params }: { params: { token: string } }) 
                   >
                     <div className="shrink-0 w-12 h-12 rounded-xl bg-invictus-accent/10 text-invictus-deep flex flex-col items-center justify-center font-bold">
                       <span className="text-lg leading-none">{p.current_phase}</span>
-                      <span className="text-[9px] opacity-80">/{TOTAL_PHASES}</span>
+                      <span className="text-[9px] opacity-80">/{visibleTotal}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-invictus-deep truncate">
