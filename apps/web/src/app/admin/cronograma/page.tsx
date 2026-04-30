@@ -65,6 +65,42 @@ export default function CronogramaPage() {
     }
   }
 
+  async function editInstallDate(item: QueueItem) {
+    const date = await dialog.prompt({
+      title: `Reagendar instalação`,
+      message: `Cliente: ${item.client.name}\n\nNova data agendada (deixe em branco pra remover):`,
+      type: "date",
+      defaultValue: item.install_scheduled_date ?? "",
+      confirmText: "Salvar",
+    });
+    if (date === null) return;
+    try {
+      const project = await api.get<{ phases: { id: string; phase_number: number }[] }>(
+        `/projects/${item.project_id}`,
+      );
+      const schedPhase = project.phases.find((p) => p.phase_number === 6);
+      if (!schedPhase) {
+        toast.show({ message: "Fase 6 (Instalação agendada) não encontrada.", tone: "error" });
+        return;
+      }
+      await api.patch(`/phases/${schedPhase.id}`, {
+        scheduled_date: date || null,
+      });
+      toast.show({
+        message: date ? "Data atualizada." : "Data removida.",
+        tone: "success",
+        duration: 2500,
+      });
+      reload();
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao salvar",
+        tone: "error",
+        duration: 4000,
+      });
+    }
+  }
+
   async function markInstalled(item: QueueItem) {
     const today = new Date().toISOString().slice(0, 10);
     const date = await dialog.prompt({
@@ -213,6 +249,13 @@ export default function CronogramaPage() {
                       <span>Kit entregue: <b>{fmtDate(item.kit_arrival_date)}</b></span>
                       <span>
                         Instalação: <b>{item.install_scheduled_date ? fmtDate(item.install_scheduled_date) : "sem agenda"}</b>
+                        <button
+                          onClick={() => editInstallDate(item)}
+                          className="ml-1 text-invictus hover:underline text-[11px]"
+                          title="Editar data"
+                        >
+                          ✏️
+                        </button>
                       </span>
                       <a href={`tel:${item.client.phone}`} className="text-invictus hover:underline">
                         📞 {item.client.phone}
