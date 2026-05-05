@@ -27,59 +27,114 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+class SessaoExpiradaError(Exception):
+    pass
+
+
 # ──────────────────────────────────────────────
 # EXTRACAO DE DADOS (JavaScript executado no navegador)
 # ──────────────────────────────────────────────
 
 JS_EXTRAIR_STATUS = """
 () => {
-    const raw = document.body.innerText;
-    const lines = raw.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+    const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
 
-    const pm = raw.match(/Protocolo\\s+(80\\d{8})/);
+    // Protocolo e endereço ficam em .filter-box / .full-address-wrapper
+    const protoEl = document.querySelector('.filter-box p.sm, .full-address-wrapper p.sm');
+    const pm = (protoEl?.textContent || '').match(/Protocolo\\s+(80\\d{8})/i);
     const protocol = pm ? pm[1] : 'desconhecido';
 
+    // Endereço: fica abaixo do protocolo no mesmo bloco
     let address = '';
-    for (let i = 0; i < lines.length; i++) {
-        if (/^80\\d{8}$/.test(lines[i]) && lines[i+1] &&
-            !lines[i+1].match(/^80\\d{8}$/) && (i === 0 || lines[i-1] !== 'Protocolo')) {
-            address = lines[i+1];
-            break;
-        }
+    const fullAddr = document.querySelector('.full-address-wrapper');
+    if (fullAddr) {
+        const txts = Array.from(fullAddr.querySelectorAll('p, span, div'))
+            .map(e => norm(e.textContent))
+            .filter(t => t && !/^Protocolo/i.test(t) && !/^80\\d{8}$/.test(t));
+        address = txts[0] || '';
     }
 
-    const isServico = (s) => s === 'Serviço' || s === 'Servico';
-    const isParada = (s) => s === 'Precisa de ajuda?';
+    // Dados do cliente: .key-value-wrapper com .keys + valor
+    const client = {};
+    document.querySelectorAll('.key-value-wrapper').forEach(kv => {
+        const keyEl = kv.querySelector('.keys');
+        if (!keyEl) return;
+        const key = norm(keyEl.textContent).toLowerCase();
+        const full = norm(kv.textContent);
+        const value = norm(full.replace(norm(keyEl.textContent), ''));
+        if (!value) return;
+        if (key.includes('nome do cliente')) client.name = value;
+        else if (key.includes('cpf') || key.includes('cnpj')) client.cpf_cnpj = value;
+        else if (key.includes('celular')) client.phone_mobile = value;
+        else if (key.includes('telefone fixo') || key === 'telefone') client.phone_fixed = value;
+        else if (key.includes('e-mail') || key.includes('email')) client.email = value;
+    });
 
+    // Serviços: cada .log-header marca início de um serviço
     const services = [];
-    let i = 0;
-    while (i < lines.length) {
-        if (isServico(lines[i]) && i + 1 < lines.length) {
-            const svc = { nome: lines[i+1], etapas: [] };
-            services.push(svc);
-            i += 2;
-            while (i < lines.length && ['remove_red_eye','delete_outline'].includes(lines[i])) i++;
-            while (i < lines.length && !isServico(lines[i]) && !isParada(lines[i])) {
-                if (/^\\d+$/.test(lines[i]) && +lines[i] >= 1 && +lines[i] <= 20) {
-                    const n = lines[i]; i++;
-                    while (i < lines.length && /^(check_circle|radio_button_unchecked|circle|pending|schedule)$/.test(lines[i])) i++;
-                    let en = '', ed = '', edc = '';
-                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && !isServico(lines[i])) { en = lines[i]; i++; }
-                    if (i < lines.length && /^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(lines[i])) { ed = lines[i]; i++; }
-                    if (i < lines.length && !/^\\d+$/.test(lines[i]) && !isServico(lines[i]) &&
-                        !isParada(lines[i]) && !['remove_red_eye','delete_outline'].includes(lines[i])) {
-                        edc = lines[i]; i++;
-                    }
-                    if (en) svc.etapas.push({ num: n, etapa: en, data: ed || '-', descricao: edc || '-' });
-                } else { i++; }
+    document.querySelectorAll('.log-header').forEach(header => {
+        const titleEl = header.querySelector('.log-title, .key-value-wrapper');
+        let nome = '';
+        if (titleEl) {
+            const full = norm(titleEl.textContent);
+            nome = norm(full.replace(/^Serviço/i, ''));
+        }
+        const svc = { nome, etapas: [] };
+        services.push(svc);
+
+        // Etapas desse serviço estão nos próximos siblings até encontrar outro .log-header
+        let sib = header.parentElement?.nextElementSibling;
+        while (sib) {
+            if (sib.querySelector && sib.querySelector('.log-header')) break;
+            sib.querySelectorAll?.('.step-details, .step-details-wrapper').forEach(step => {
+                const texts = Array.from(step.querySelectorAll('p'))
+                    .map(p => norm(p.textContent))
+                    .filter(Boolean);
+                const iconEl = step.querySelector('.material-icons, [class*="material-icons"]');
+                const status = iconEl ? norm(iconEl.textContent) : '';
+                const titulo = texts[0] || '';
+                const dataMatch = texts.find(t => /^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t)) || '';
+                const descricao = texts.find(t => t !== titulo && !/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t)) || '';
+                if (titulo) svc.etapas.push({ titulo, data: dataMatch || '-', descricao: descricao || '-', status });
+            });
+            sib = sib.nextElementSibling;
+        }
+    });
+
+    // Fallback mais robusto: coleta todas as .step-details em ordem e agrupa por .log-header anterior
+    if (services.every(s => s.etapas.length === 0)) {
+        services.length = 0;
+        const nodes = Array.from(document.querySelectorAll('.log-header, .step-details, .step-details-wrapper'));
+        let current = null;
+        nodes.forEach(n => {
+            if (n.classList.contains('log-header')) {
+                const full = norm(n.textContent);
+                const nome = norm(full.replace(/^Serviço/i, '').replace(/remove_red_eye|delete_outline/g, ''));
+                current = { nome, etapas: [] };
+                services.push(current);
+            } else if (current) {
+                const texts = Array.from(n.querySelectorAll('p'))
+                    .map(p => norm(p.textContent))
+                    .filter(Boolean);
+                if (!texts.length) return;
+                const titulo = texts[0];
+                const data = texts.find(t => /^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t)) || '';
+                const descricao = texts.find(t => t !== titulo && !/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(t)) || '';
+                const status = n.className.includes('success') ? 'concluido' :
+                               n.className.includes('pending') ? 'pendente' : '';
+                // evita duplicar
+                if (!current.etapas.some(e => e.titulo === titulo && e.data === data)) {
+                    current.etapas.push({ titulo, data: data || '-', descricao: descricao || '-', status });
+                }
             }
-        } else { i++; }
+        });
     }
 
-    const aguardando = raw.includes('Serviços disponíveis para esse protocolo') ||
-                       raw.includes('Servicos disponiveis para esse protocolo');
+    const rawText = document.body.innerText || '';
+    const aguardando = /Serviços disponíveis para esse protocolo/i.test(rawText) ||
+                       /Servicos disponiveis para esse protocolo/i.test(rawText);
 
-    return { protocol, address, services, aguardando };
+    return { protocol, address, client, services, aguardando };
 }
 """
 
@@ -206,14 +261,34 @@ def verificar_sessao(page) -> bool:
     return total > 0
 
 
+def goto_com_retry(page, url: str, tentativas: int = 3, espera_ms: int = 10000):
+    """Navega para URL com retry em caso de ERR_CONNECTION_RESET ou timeout."""
+    ultimo_erro = None
+    for tentativa in range(tentativas):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(2000)
+            try:
+                page.wait_for_load_state("networkidle", timeout=20000)
+            except PlaywrightTimeout:
+                log.warning("networkidle nao alcancado, prosseguindo mesmo assim")
+            return
+        except Exception as e:
+            ultimo_erro = e
+            log.warning(f"Tentativa {tentativa + 1}/{tentativas} de acessar {url} falhou: {e}")
+            if tentativa < tentativas - 1:
+                page.wait_for_timeout(espera_ms)
+    raise RuntimeError(f"Falha ao acessar {url} apos {tentativas} tentativas: {ultimo_erro}")
+
+
 def coletar_todos_protocolos(page) -> list[dict]:
     """Coleta o status de todos os protocolos listados na pagina de selecao."""
     log.info("Acessando pagina de selecao de protocolos...")
-    page.goto(CELESC_URL_SELECAO, wait_until="networkidle")
+    goto_com_retry(page, CELESC_URL_SELECAO)
     page.wait_for_timeout(3000)
 
     if not verificar_sessao(page):
-        raise RuntimeError(
+        raise SessaoExpiradaError(
             "Sessao expirada! Os cookies nao sao mais validos. "
             "Execute 'python salvar_login.py' novamente para renovar a sessao."
         )
@@ -224,7 +299,7 @@ def coletar_todos_protocolos(page) -> list[dict]:
     resultados = []
 
     for idx in range(total):
-        page.goto(CELESC_URL_SELECAO, wait_until="networkidle")
+        goto_com_retry(page, CELESC_URL_SELECAO)
         page.wait_for_timeout(2000)
 
         resultado = page.evaluate(JS_CLICAR_PROTOCOLO, idx)
@@ -442,7 +517,7 @@ def executar_monitoramento():
 
         try:
             dados_atuais = coletar_todos_protocolos(page)
-        except RuntimeError:
+        except SessaoExpiradaError:
             # Sessao expirada - tentar login automatico
             log.warning("Sessao expirada. Tentando login automatico...")
             if fazer_login(page):

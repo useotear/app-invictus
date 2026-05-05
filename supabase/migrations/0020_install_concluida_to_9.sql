@@ -76,7 +76,7 @@ declare
     'Previsão de entrega do kit',
     'Kit entregue',
     'Instalação agendada',
-    'Entrada do projeto na Celesc',
+    'Entrada do projeto',
     'Projeto em análise',
     'Projeto aprovado',
     'Instalação concluída',

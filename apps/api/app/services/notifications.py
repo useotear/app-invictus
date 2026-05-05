@@ -83,15 +83,19 @@ async def dispatch_phase_notifications(
         .eq("event", event).eq("enabled", True).execute().data or []
 
     for tpl in templates:
-        # Lista de destinatários sem filtrar por phone — push não precisa de phone.
-        # phone pode ser None; a branch de WhatsApp verifica e loga "sem phone" se faltar.
-        recipients: list[tuple[str, str | None, str, str]] = []  # (rtype, phone, link, name)
+        # (rtype, phone, link, name, entity_id) — entity_id = client.id, user.id
+        recipients: list[tuple[str, str | None, str, str, str]] = []
         if tpl["recipient"] in ("client", "both"):
-            recipients.append(("client", client.get("phone"), portal_link, client["name"]))
+            recipients.append(("client", client.get("phone"), portal_link, client["name"], client["id"]))
         if tpl["recipient"] in ("seller", "both") and seller:
-            recipients.append(("seller", seller.get("phone"), admin_link, seller["name"]))
+            recipients.append(("seller", seller.get("phone"), admin_link, seller["name"], seller["id"]))
+        if tpl["recipient"] == "installer":
+            managers = db.table("users").select("id,name,phone") \
+                .eq("company_id", company_id).eq("is_install_manager", True).execute().data or []
+            for m in managers:
+                recipients.append(("installer", m.get("phone"), admin_link, m["name"], m["id"]))
 
-        for rtype, phone, link, _name in recipients:
+        for rtype, phone, link, _name, entity_id in recipients:
             message = _render(tpl["template"], nome=client["name"], data=str(scheduled), link=link)
             masked_phone = f"****{phone[-4:]}" if phone and len(phone) >= 4 else "****"
             log = {
@@ -109,11 +113,11 @@ async def dispatch_phase_notifications(
                 elif tpl["channel"] == "push":
                     if rtype == "client":
                         subs = db.table("push_subscriptions").select("*") \
-                            .eq("client_id", client["id"]).execute().data or []
+                            .eq("client_id", entity_id).execute().data or []
                         url = "/cliente" if client.get("auth_user_id") else f"/portal/{client['access_token']}"
-                    else:  # seller
+                    else:  # seller | installer
                         subs = db.table("push_subscriptions").select("*") \
-                            .eq("user_id", seller["id"]).execute().data or []
+                            .eq("user_id", entity_id).execute().data or []
                         url = f"/admin/projects/{project_id}"
                     if not subs:
                         raise RuntimeError(f"{rtype} sem dispositivo inscrito em push")
