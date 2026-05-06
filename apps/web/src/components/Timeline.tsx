@@ -34,7 +34,9 @@ export function Timeline({ phases }: { phases: Phase[] }) {
                 {p.phase_number}. {p.phase_name}
               </h3>
               <span className="text-[11px] text-slate-500 shrink-0">
-                {p.completed_date ? `✓ ${fmt(p.completed_date)}` : p.scheduled_date ? `prev. ${fmt(p.scheduled_date)}` : ""}
+                {p.phase_number === 6
+                  ? (p.scheduled_date ? `prev. ${fmt(p.scheduled_date)}` : "")
+                  : (p.completed_date ? `✓ ${fmt(p.completed_date)}` : p.scheduled_date ? `prev. ${fmt(p.scheduled_date)}` : "")}
               </span>
             </div>
             {p.notes && <p className="text-xs text-slate-500 mt-1">{p.notes}</p>}
