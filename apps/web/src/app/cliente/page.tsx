@@ -142,9 +142,10 @@ export default function ClienteDashboard() {
   const nextPhase = visiblePhases.find((p) => p.status !== "completed");
   const currentLabel = phaseLabel(primary.current_phase);
   const totalDocs = projects.reduce((s, p) => s + p.documents_count, 0);
-  // Fase 6 = Instalação agendada. Mostra a data do cronograma enquanto a fase 6 ainda não foi concluída.
+  // Fase 6 = Instalação agendada. Mostra a data do cronograma enquanto a instalação (fase 10) não foi concluída.
   const installPhase = primary.phases.find((p) => p.phase_number === 6);
-  const installDate = installPhase?.status !== "completed" ? installPhase?.scheduled_date ?? null : null;
+  const installDonePhase = primary.phases.find((p) => p.phase_number === 10);
+  const installDate = installDonePhase?.status !== "completed" ? installPhase?.scheduled_date ?? null : null;
 
   return (
     <main className="min-h-screen bg-invictus-bg pb-28">
