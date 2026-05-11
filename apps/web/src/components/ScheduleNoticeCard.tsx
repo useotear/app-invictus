@@ -34,6 +34,28 @@ const TEMPLATES = [
       `Olá ${name}! Nossa equipe está com um pequeno atraso na agenda de hoje. ${dateClause(date)}`,
   },
   {
+    key: "maintenance_scheduled",
+    label: "Manutenção agendada",
+    text: () =>
+      "Olá, tudo bem?\n" +
+      "Aqui é a equipe da Invictus Soluções.\n" +
+      "Passamos para informar que sua manutenção está agendada para amanhã, com início a partir das 9h.\n" +
+      "Nosso horário previsto de chegada é até às 9h.\n" +
+      "Qualquer dúvida, estamos à disposição.\n" +
+      "Muito obrigado!",
+  },
+  {
+    key: "install_tomorrow",
+    label: "Instalação amanhã",
+    text: () =>
+      "Olá, tudo bem?\n" +
+      "Aqui é a equipe de instalação da Invictus Soluções.\n" +
+      "Passando para avisar que amanhã estaremos a caminho para realizar a instalação do seu kit fotovoltaico.\n" +
+      "Nosso horário previsto de chegada é até às 9h.\n" +
+      "Qualquer dúvida, ficamos à disposição.\n" +
+      "Muito obrigado!",
+  },
+  {
     key: "custom",
     label: "Mensagem personalizada",
     text: () => "",
