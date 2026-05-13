@@ -21,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body suppressHydrationWarning>
+        <Script src="/env-config.js" strategy="beforeInteractive" nonce={nonce} />
         {children}
         <Script src="/sw-register.js" strategy="afterInteractive" nonce={nonce} />
       </body>

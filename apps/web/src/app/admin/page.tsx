@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
+import { API_URL } from "@/lib/supabase";
 import { useMe } from "@/lib/useMe";
 import { TOTAL_PHASES } from "@/lib/phases";
 
@@ -96,7 +97,7 @@ export default function AdminHome() {
             <summary className="cursor-pointer text-red-700/80">Detalhes técnicos</summary>
             <p className="mt-1 font-mono break-all">{error}</p>
             <p className="mt-1 text-[11px] text-red-600/70">
-              API: <code>{process.env.NEXT_PUBLIC_API_URL}</code>
+              API: <code>{API_URL}</code>
             </p>
           </details>
         </div>
