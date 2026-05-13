@@ -28,6 +28,12 @@ function fmtDate(d: string | null) {
   });
 }
 
+function addDaysISO(d: string, days: number) {
+  const date = new Date(d + (d.length === 10 ? "T12:00:00" : ""));
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function projectType(kwp: number | null) {
   if (!kwp) return "Projeto";
   return kwp < 10 ? "Residencial" : "Comercial";
@@ -86,8 +92,31 @@ export default function CronogramaPage() {
       await api.patch(`/phases/${schedPhase.id}`, {
         scheduled_date: date || null,
       });
+
+      let shiftedCount = 0;
+      const changedDate = (date || null) !== item.install_scheduled_date;
+      if (date && changedDate && queue) {
+        const following = queue.filter((next) =>
+          next.position > item.position && next.install_scheduled_date
+        );
+
+        for (const next of following) {
+          const nextProject = await api.get<{ phases: { id: string; phase_number: number }[] }>(
+            `/projects/${next.project_id}`,
+          );
+          const nextSchedPhase = nextProject.phases.find((p) => p.phase_number === 6);
+          if (!nextSchedPhase || !next.install_scheduled_date) continue;
+          await api.patch(`/phases/${nextSchedPhase.id}`, {
+            scheduled_date: addDaysISO(next.install_scheduled_date, 1),
+          });
+          shiftedCount += 1;
+        }
+      }
+
       toast.show({
-        message: date ? "Data atualizada." : "Data removida.",
+        message: shiftedCount
+          ? `Data atualizada. ${shiftedCount} cliente(s) abaixo foram remarcados +1 dia.`
+          : date ? "Data atualizada." : "Data removida.",
         tone: "success",
         duration: 2500,
       });
