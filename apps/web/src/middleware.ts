@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV !== "production";
+  const method = request.method.toUpperCase();
 
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -45,6 +46,25 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const response = NextResponse.json(
+      {
+        error:
+          "Frontend received a non-page request. Check NEXT_PUBLIC_API_URL and send API calls to the API service.",
+        method,
+        path: request.nextUrl.pathname,
+      },
+      {
+        status: 405,
+        headers: {
+          allow: "GET, HEAD, OPTIONS",
+        },
+      },
+    );
+    response.headers.set("content-security-policy", csp);
+    return response;
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("content-security-policy", csp);
