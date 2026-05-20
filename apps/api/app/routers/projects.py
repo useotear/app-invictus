@@ -128,6 +128,22 @@ def get_project(project_id: str, user: AdminUser = Depends(require_admin)):
     return r.data
 
 
+@router.delete("/{project_id}")
+def delete_project(project_id: str, user: AdminUser = Depends(require_admin)):
+    """Exclui permanentemente um projeto e todos os seus dados (fases, documentos, fotos).
+    Operação irreversível. Restrita a administradores."""
+    if user.role != "admin":
+        raise HTTPException(403, "Somente administradores podem excluir projetos")
+    row = _assert_project_access(project_id, user)
+    db.table("projects").delete().eq("id", project_id).execute()
+    log_audit(
+        company_id=user.company_id, actor=user,
+        action="project.delete", entity_type="project", entity_id=project_id,
+        metadata={"client_id": row.get("client_id"), "address": row.get("address")},
+    )
+    return {"deleted": True}
+
+
 @router.patch("/{project_id}")
 def update_project(
     project_id: str,

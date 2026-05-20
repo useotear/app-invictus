@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Phase, TOTAL_PHASES } from "@/lib/phases";
 import { ProjectDocuments } from "@/components/ProjectDocuments";
@@ -61,6 +62,7 @@ function dotColor(status: Phase["status"]) {
 interface Seller { id: string; name: string; email: string; role: string }
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [p, setP] = useState<ProjectDetail | null>(null);
   const [checklist, setChecklist] = useState<ChecklistState | null>(null);
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -199,6 +201,49 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         message: e instanceof Error ? e.message : "Erro ao trocar",
         tone: "error",
         duration: 4000,
+      });
+    }
+  }
+
+  async function deleteProject() {
+    if (!p) return;
+    // Primeira confirmação — explica a gravidade
+    const step1 = await dialog.confirm({
+      title: "Excluir projeto permanentemente?",
+      message:
+        `Isso irá apagar TODOS os dados do projeto de ${p.client.name}:\n` +
+        `• Fases e datas\n• Documentos\n• Fotos\n• Histórico de pagamentos\n\n` +
+        `Esta ação é IRREVERSÍVEL e não pode ser desfeita.`,
+      confirmText: "Continuar",
+      danger: true,
+    });
+    if (!step1) return;
+    // Segunda confirmação — exige digitação do nome do cliente
+    const typed = await dialog.prompt({
+      title: "Confirmação final",
+      message: `Digite o nome do cliente para confirmar a exclusão:\n"${p.client.name}"`,
+      type: "text",
+      placeholder: p.client.name,
+      confirmText: "Excluir definitivamente",
+    });
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== p.client.name.trim().toLowerCase()) {
+      await dialog.alert({
+        title: "Nome incorreto",
+        message: "O nome digitado não confere. Exclusão cancelada.",
+        tone: "error",
+      });
+      return;
+    }
+    try {
+      await api.delete(`/projects/${params.id}`);
+      toast.show({ message: "Projeto excluído permanentemente.", tone: "success", duration: 3000 });
+      router.replace("/admin");
+    } catch (e) {
+      toast.show({
+        message: e instanceof Error ? e.message : "Erro ao excluir",
+        tone: "error",
+        duration: 5000,
       });
     }
   }
@@ -427,6 +472,14 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               </button>
             )}
           </span>
+          {me?.role === "admin" && (
+            <button
+              onClick={deleteProject}
+              className="text-xs text-red-300 hover:text-red-100 border border-red-400/40 hover:border-red-300 px-3 py-1 rounded-lg transition"
+            >
+              🗑 Excluir projeto
+            </button>
+          )}
         </div>
       </div>
 
