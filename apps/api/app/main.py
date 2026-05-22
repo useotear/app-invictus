@@ -20,33 +20,23 @@ if settings.sentry_dsn:
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
-app = FastAPI(title="Invictus Solar API", version="1.0.0")
-app.state.limiter = limiter
+api = FastAPI(title="Invictus Solar API", version="1.0.0")
+api.state.limiter = limiter
 
 
-@app.exception_handler(RateLimitExceeded)
+@api.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit excedido"})
 
 
-@app.exception_handler(Exception)
+@api.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     import logging
     logging.getLogger("api").exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Erro interno do servidor"})
 
 
-allowed = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed or [settings.portal_base_url],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Cron-Secret"],
-)
-
-
-@app.middleware("http")
+@api.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -56,25 +46,25 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-app.include_router(auth.router)
-app.include_router(clients.router)
-app.include_router(projects.router)
-app.include_router(documents.router)
-app.include_router(phases.router)
-app.include_router(push.router)
-app.include_router(maintenance.router)
-app.include_router(celesc.router)
-app.include_router(me.router)
-app.include_router(schedule.router)
-app.include_router(photos.router)
+api.include_router(auth.router)
+api.include_router(clients.router)
+api.include_router(projects.router)
+api.include_router(documents.router)
+api.include_router(phases.router)
+api.include_router(push.router)
+api.include_router(maintenance.router)
+api.include_router(celesc.router)
+api.include_router(me.router)
+api.include_router(schedule.router)
+api.include_router(photos.router)
 
 
-@app.get("/health")
+@api.get("/health")
 def health():
     return {"ok": True}
 
 
-@app.get("/health/ready")
+@api.get("/health/ready")
 def health_ready():
     from .db import db
 
@@ -83,3 +73,13 @@ def health_ready():
         return {"ok": True, "db": "up"}
     except Exception as e:
         return JSONResponse(status_code=503, content={"ok": False, "db": "down", "error": type(e).__name__})
+
+
+allowed = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+app = CORSMiddleware(
+    api,
+    allow_origins=allowed or [settings.portal_base_url],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Cron-Secret"],
+)
