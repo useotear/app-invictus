@@ -58,6 +58,40 @@ async def _notify_finance_contract_signed(project: dict, admin_link: str) -> Non
     db.table("notifications_log").insert(log).execute()
 
 
+async def _notify_finance_rp_ready(project: dict, admin_link: str) -> None:
+    """Quando o projeto entra na fase 3, avisa o financeiro/RP via WhatsApp."""
+    phone = settings.finance_whatsapp_phone
+    if not phone:
+        return
+    client = project.get("client") or {}
+    seller = project.get("seller") or {}
+    msg = (
+        "Projeto pronto para lancar venda RP - Invictus Solar\n\n"
+        f"Cliente: {client.get('name') or '-'}\n"
+        f"Telefone: {client.get('phone') or '-'}\n"
+        f"Endereco: {project.get('address') or '-'}\n"
+        f"Valor: R$ {project.get('contract_value') or '-'}\n"
+        f"Vendedor: {seller.get('name') or '-'}\n\n"
+        f"Detalhes: {admin_link}"
+    )
+    masked = f"****{phone[-4:]}" if len(phone) >= 4 else "****"
+    log = {
+        "project_id": project["id"],
+        "channel": "whatsapp",
+        "recipient_type": "admin",
+        "recipient": masked,
+        "message": None,
+    }
+    try:
+        await send_whatsapp(phone, msg)
+        log["status"] = "sent"
+        log["sent_at"] = datetime.utcnow().isoformat()
+    except Exception as e:
+        log["status"] = "failed"
+        log["error"] = str(e)
+    db.table("notifications_log").insert(log).execute()
+
+
 async def dispatch_phase_notifications(
     project_id: str, phase_number: int, event: str = "completed"
 ) -> None:
@@ -82,6 +116,8 @@ async def dispatch_phase_notifications(
     # Aviso ao financeiro quando contrato é assinado (fase 1)
     if phase_number == 1 and event == "completed":
         await _notify_finance_contract_signed(project, admin_link)
+    if phase_number == 2 and event == "completed":
+        await _notify_finance_rp_ready(project, admin_link)
 
     phase = db.table("project_phases").select("*") \
         .eq("project_id", project_id).eq("phase_number", phase_number).single().execute().data
