@@ -31,6 +31,14 @@ def list_projects(me: ClientUser = Depends(require_client)):
     return projects
 
 
+@router.get("/maintenance")
+def list_maintenance(me: ClientUser = Depends(require_client)):
+    return db.table("client_maintenances").select("*") \
+        .eq("client_id", me.client_id) \
+        .order("scheduled_date", desc=False) \
+        .execute().data or []
+
+
 @router.get("/projects/{project_id}")
 def get_project(project_id: str, me: ClientUser = Depends(require_client)):
     r = db.table("projects").select(

@@ -15,9 +15,16 @@ interface Project {
   phases: Phase[];
   documents_count: number;
 }
+interface Maintenance {
+  id: string;
+  scheduled_date: string;
+  status: "scheduled" | "completed" | "canceled";
+  notes: string | null;
+}
 interface Resp {
   client: { id: string; name: string; email: string | null; phone: string };
   projects: Project[];
+  maintenances: Maintenance[];
 }
 
 type LoadResult =
@@ -122,14 +129,23 @@ export default async function Portal({ params }: { params: { token: string } }) 
     />;
   }
 
-  const { client, projects } = result.data;
+  const { client, projects, maintenances } = result.data;
+  const nextMaintenance = maintenances.find((m) => m.status === "scheduled") ?? null;
 
   if (projects.length === 0) {
     return (
-      <main className="min-h-screen bg-invictus-bg p-6">
-        <p className="text-slate-600 text-center py-12">
-          Nenhum projeto cadastrado ainda. Entre em contato com a equipe.
-        </p>
+      <main className="min-h-screen bg-invictus-bg p-6 space-y-4">
+        <header className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-sm text-slate-500">Ola,</p>
+          <h1 className="text-2xl font-bold text-invictus-deep">{client.name}</h1>
+        </header>
+        {nextMaintenance ? (
+          <MaintenanceCard item={nextMaintenance} />
+        ) : (
+          <p className="text-slate-600 text-center py-12 bg-white rounded-2xl shadow-card">
+            Nenhum projeto ou manutencao agendada ainda. Entre em contato com a equipe.
+          </p>
+        )}
       </main>
     );
   }
@@ -295,6 +311,8 @@ export default async function Portal({ params }: { params: { token: string } }) 
           </div>
         )}
 
+        {nextMaintenance && <MaintenanceCard item={nextMaintenance} />}
+
         <Link
           href={`/portal/${params.token}/${primary.id}#documentos`}
           className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-3 hover:shadow-md transition"
@@ -407,6 +425,23 @@ export default async function Portal({ params }: { params: { token: string } }) 
         }/>
       </nav>
     </main>
+  );
+}
+
+function MaintenanceCard({ item }: { item: Maintenance }) {
+  return (
+    <section className="bg-white rounded-2xl shadow-card p-5 border-l-4 border-emerald-500">
+      <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
+        Proxima manutencao
+      </p>
+      <p className="text-2xl font-bold text-invictus-deep mt-1">
+        {fmtDate(item.scheduled_date)}
+      </p>
+      {item.notes && <p className="text-sm text-slate-600 mt-2">{item.notes}</p>}
+      <p className="text-xs text-slate-500 mt-3">
+        Esta data fica registrada no seu portal. Se houver alteracao, a equipe atualiza por aqui.
+      </p>
+    </section>
   );
 }
 

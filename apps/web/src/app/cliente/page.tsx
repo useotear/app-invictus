@@ -21,6 +21,13 @@ interface Project {
   documents_count: number;
 }
 
+interface Maintenance {
+  id: string;
+  scheduled_date: string;
+  status: "scheduled" | "completed" | "canceled";
+  notes: string | null;
+}
+
 interface Me {
   id: string;
   name: string;
@@ -63,6 +70,7 @@ export default function ClienteDashboard() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
+  const [maintenances, setMaintenances] = useState<Maintenance[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,12 +81,14 @@ export default function ClienteDashboard() {
         return;
       }
       try {
-        const [meRes, projRes] = await Promise.all([
+        const [meRes, projRes, maintenanceRes] = await Promise.all([
           api.get<Me>("/me"),
           api.get<Project[]>("/me/projects"),
+          api.get<Maintenance[]>("/me/maintenance"),
         ]);
         setMe(meRes);
         setProjects(projRes);
+        setMaintenances(maintenanceRes);
         if (meRes.must_change_password) router.replace("/cliente/trocar-senha");
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
@@ -108,7 +118,7 @@ export default function ClienteDashboard() {
     );
   }
 
-  if (!me || !projects) {
+  if (!me || !projects || !maintenances) {
     return (
       <main className="min-h-screen bg-invictus-bg flex items-center justify-center">
         <p className="text-slate-500 text-sm">Carregando...</p>
@@ -116,15 +126,25 @@ export default function ClienteDashboard() {
     );
   }
 
+  const nextMaintenance = maintenances.find((m) => m.status === "scheduled") ?? null;
+
   if (projects.length === 0) {
     return (
-      <main className="min-h-screen bg-invictus-bg p-6">
-        <div className="flex justify-end mb-4">
+      <main className="min-h-screen bg-invictus-bg p-6 space-y-4">
+        <div className="flex justify-end">
           <button onClick={logout} className="text-xs text-slate-500 hover:underline">Sair</button>
         </div>
-        <p className="text-slate-600 text-center py-12">
-          Nenhum projeto cadastrado ainda. Entre em contato com a equipe.
-        </p>
+        <header className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-sm text-slate-500">Ola,</p>
+          <h1 className="text-2xl font-bold text-invictus-deep">{me.name}</h1>
+        </header>
+        {nextMaintenance ? (
+          <MaintenanceCard item={nextMaintenance} />
+        ) : (
+          <p className="text-slate-600 text-center py-12 bg-white rounded-2xl shadow-card">
+            Nenhum projeto ou manutencao agendada ainda. Entre em contato com a equipe.
+          </p>
+        )}
       </main>
     );
   }
@@ -268,6 +288,8 @@ export default function ClienteDashboard() {
           </div>
         )}
 
+        {nextMaintenance && <MaintenanceCard item={nextMaintenance} />}
+
         <Link
           href={`/cliente/projetos/${primary.id}`}
           className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-3 hover:shadow-md transition"
@@ -314,5 +336,22 @@ export default function ClienteDashboard() {
         )}
       </div>
     </main>
+  );
+}
+
+function MaintenanceCard({ item }: { item: Maintenance }) {
+  return (
+    <section className="bg-white rounded-2xl shadow-card p-5 border-l-4 border-emerald-500">
+      <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
+        Proxima manutencao
+      </p>
+      <p className="text-2xl font-bold text-invictus-deep mt-1">
+        {fmtDateShort(item.scheduled_date)}
+      </p>
+      {item.notes && <p className="text-sm text-slate-600 mt-2">{item.notes}</p>}
+      <p className="text-xs text-slate-500 mt-3">
+        Esta data fica registrada no seu portal. Se houver alteracao, a equipe atualiza por aqui.
+      </p>
+    </section>
   );
 }

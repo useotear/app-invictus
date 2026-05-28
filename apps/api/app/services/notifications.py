@@ -6,6 +6,15 @@ from .webpush import send_push
 from .whatsapp import send_whatsapp
 
 
+def _fmt_date_br(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        return datetime.fromisoformat(value[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return value
+
+
 def _render(template: str, *, nome: str, data: str, link: str) -> str:
     return (template
             .replace("{nome}", nome or "")
@@ -96,7 +105,7 @@ async def dispatch_phase_notifications(
                 recipients.append(("installer", m.get("phone"), admin_link, m["name"], m["id"]))
 
         for rtype, phone, link, _name, entity_id in recipients:
-            message = _render(tpl["template"], nome=client["name"], data=str(scheduled), link=link)
+            message = _render(tpl["template"], nome=client["name"], data=_fmt_date_br(str(scheduled)), link=link)
             masked_phone = f"****{phone[-4:]}" if phone and len(phone) >= 4 else "****"
             log = {
                 "project_id": project_id,
@@ -135,6 +144,7 @@ async def notify_upcoming_installs() -> dict:
     """Chamado por cron diário. Avisa os 'install managers' sobre instalações de amanhã."""
     from datetime import date, timedelta
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    tomorrow_br = _fmt_date_br(tomorrow)
 
     # Projetos com fase 6 (Instalação agendada) pra amanhã e ainda não instalados
     phase_rows = db.table("project_phases").select(
@@ -164,7 +174,7 @@ async def notify_upcoming_installs() -> dict:
 
         lines = [f"• {p['client']['name']} — {p.get('address') or 'sem endereço'}" for p in projects]
         body = (
-            f"Instalações agendadas para amanhã ({tomorrow}):\n\n"
+            f"Instalações agendadas para amanhã ({tomorrow_br}):\n\n"
             + "\n".join(lines)
             + "\n\nConfira o cronograma no painel."
         )
@@ -182,7 +192,7 @@ async def notify_upcoming_installs() -> dict:
                 .eq("user_id", m["id"]).execute().data or []
             for sub in subs:
                 send_push(sub, title="Instalações de amanhã",
-                          body=f"{len(projects)} instalação(ões) agendada(s) pra {tomorrow}",
+                          body=f"{len(projects)} instalação(ões) agendada(s) pra {tomorrow_br}",
                           url="/admin/cronograma")
 
     return summary

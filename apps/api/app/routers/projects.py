@@ -277,4 +277,8 @@ def by_client_token(request: Request, token: str):
     for p in projects:
         p["phases"] = sorted(p.get("phases") or [], key=lambda x: x["phase_number"])
         p["documents_count"] = len(p.get("documents") or [])
-    return {"client": client, "projects": projects}
+    maintenances = db.table("client_maintenances").select("*") \
+        .eq("client_id", client["id"]) \
+        .order("scheduled_date", desc=False) \
+        .execute().data or []
+    return {"client": client, "projects": projects, "maintenances": maintenances}
