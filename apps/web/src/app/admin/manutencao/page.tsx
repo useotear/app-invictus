@@ -23,7 +23,7 @@ interface Maintenance {
 
 const STATUS_LABEL: Record<Maintenance["status"], string> = {
   scheduled: "Agendada",
-  completed: "Concluida",
+  completed: "Concluída",
   canceled: "Cancelada",
 };
 
@@ -58,7 +58,7 @@ export default function MaintenancePage() {
   useEffect(() => {
     reload().catch((e) => {
       toast.show({
-        message: e instanceof Error ? e.message : "Erro ao carregar manutencoes",
+        message: e instanceof Error ? e.message : "Erro ao carregar manutenções",
         tone: "error",
         duration: 5000,
       });
@@ -87,13 +87,13 @@ export default function MaintenancePage() {
         scheduled_date: scheduledDate,
         notes: notes || null,
       });
-      toast.show({ message: "Manutencao agendada.", tone: "success", duration: 2500 });
+      toast.show({ message: "Manutenção agendada.", tone: "success", duration: 2500 });
       setScheduledDate("");
       setNotes("");
       await reload();
     } catch (e) {
       toast.show({
-        message: e instanceof Error ? e.message : "Erro ao agendar manutencao",
+        message: e instanceof Error ? e.message : "Erro ao agendar manutenção",
         tone: "error",
         duration: 5000,
       });
@@ -106,7 +106,7 @@ export default function MaintenancePage() {
     try {
       await api.patch(`/maintenance/${id}`, body);
       await reload();
-      toast.show({ message: "Manutencao atualizada.", tone: "success", duration: 2500 });
+      toast.show({ message: "Manutenção atualizada.", tone: "success", duration: 2500 });
     } catch (e) {
       toast.show({
         message: e instanceof Error ? e.message : "Erro ao atualizar",
@@ -119,10 +119,10 @@ export default function MaintenancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-[10px] font-semibold tracking-[0.2em] text-invictus uppercase">Manutencao</p>
-        <h1 className="text-3xl font-bold text-invictus-deep">Agendar manutencao</h1>
+        <p className="text-[10px] font-semibold tracking-[0.2em] text-invictus uppercase">Manutenção</p>
+        <h1 className="text-3xl font-bold text-invictus-deep">Agendar manutenção</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Use para cliente antigo: selecione o cliente e informe a data da proxima manutencao.
+          Use para cliente antigo: selecione o cliente e informe a data da próxima manutenção.
         </p>
       </div>
 
@@ -163,7 +163,7 @@ export default function MaintenancePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs font-semibold text-invictus-deep">Data da proxima manutencao</span>
+              <span className="text-xs font-semibold text-invictus-deep">Data da próxima manutenção</span>
               <input
                 required
                 type="date"
@@ -173,11 +173,11 @@ export default function MaintenancePage() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-invictus-deep">Observacao</span>
+              <span className="text-xs font-semibold text-invictus-deep">Observação</span>
               <input
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex: limpeza dos modulos, revisao do inversor"
+                placeholder="Ex: limpeza dos módulos, revisão do inversor"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-invictus"
               />
             </label>
@@ -187,13 +187,13 @@ export default function MaintenancePage() {
             disabled={busy || !clientId || !scheduledDate}
             className="w-full bg-invictus text-white py-3 rounded-xl font-semibold hover:bg-invictus-dark transition disabled:opacity-50"
           >
-            {busy ? "Agendando..." : "Agendar manutencao"}
+            {busy ? "Agendando..." : "Agendar manutenção"}
           </button>
         </form>
       </section>
 
-      <MaintenanceList title="Proximas manutencoes" items={upcoming} onPatch={patchItem} />
-      <MaintenanceList title="Historico" items={history} onPatch={patchItem} />
+      <MaintenanceList title="Próximas manutenções" items={upcoming} onPatch={patchItem} />
+      <MaintenanceList title="Histórico" items={history} onPatch={patchItem} />
     </div>
   );
 }

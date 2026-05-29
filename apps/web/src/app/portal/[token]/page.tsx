@@ -136,14 +136,14 @@ export default async function Portal({ params }: { params: { token: string } }) 
     return (
       <main className="min-h-screen bg-invictus-bg p-6 space-y-4">
         <header className="bg-white rounded-2xl shadow-card p-5">
-          <p className="text-sm text-slate-500">Ola,</p>
+          <p className="text-sm text-slate-500">Olá,</p>
           <h1 className="text-2xl font-bold text-invictus-deep">{client.name}</h1>
         </header>
         {nextMaintenance ? (
           <MaintenanceCard item={nextMaintenance} />
         ) : (
           <p className="text-slate-600 text-center py-12 bg-white rounded-2xl shadow-card">
-            Nenhum projeto ou manutencao agendada ainda. Entre em contato com a equipe.
+            Nenhum projeto ou manutenção agendada ainda. Entre em contato com a equipe.
           </p>
         )}
       </main>
@@ -432,14 +432,14 @@ function MaintenanceCard({ item }: { item: Maintenance }) {
   return (
     <section className="bg-white rounded-2xl shadow-card p-5 border-l-4 border-emerald-500">
       <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
-        Proxima manutencao
+        Próxima manutenção
       </p>
       <p className="text-2xl font-bold text-invictus-deep mt-1">
         {fmtDate(item.scheduled_date)}
       </p>
       {item.notes && <p className="text-sm text-slate-600 mt-2">{item.notes}</p>}
       <p className="text-xs text-slate-500 mt-3">
-        Esta data fica registrada no seu portal. Se houver alteracao, a equipe atualiza por aqui.
+        Esta data fica registrada no seu portal. Se houver alteração, a equipe atualiza por aqui.
       </p>
     </section>
   );

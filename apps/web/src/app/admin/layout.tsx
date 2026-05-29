@@ -32,7 +32,7 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Projetos" },
   { href: "/admin/clients", label: "Clientes" },
   { href: "/admin/cronograma", label: "Cronograma" },
-  { href: "/admin/manutencao", label: "Manutencao" },
+  { href: "/admin/manutencao", label: "Manutenção" },
   { href: "/admin/perfil", label: "Perfil" },
 ];
 

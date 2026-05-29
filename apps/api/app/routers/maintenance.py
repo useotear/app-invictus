@@ -31,15 +31,15 @@ def _assert_client_access(client_id: str, user: AdminUser) -> dict:
     row = db.table("clients").select("id,company_id,seller_id,name,phone,email") \
         .eq("id", client_id).single().execute().data
     if not row or row["company_id"] != user.company_id:
-        raise HTTPException(404, "Cliente nao encontrado")
+        raise HTTPException(404, "Cliente não encontrado")
     if not sees_all_clients(user.role) and row.get("seller_id") != user.user_id:
-        raise HTTPException(404, "Cliente nao encontrado")
+        raise HTTPException(404, "Cliente não encontrado")
     return row
 
 
 def _assert_can_manage(user: AdminUser) -> None:
     if user.role not in MAINTENANCE_ROLES:
-        raise HTTPException(403, "Perfil sem permissao para gerenciar manutencao")
+        raise HTTPException(403, "Perfil sem permissão para gerenciar manutenção")
 
 
 def _load_maintenance(maintenance_id: str, user: AdminUser) -> dict:
@@ -47,10 +47,10 @@ def _load_maintenance(maintenance_id: str, user: AdminUser) -> dict:
         "*,client:clients(id,name,phone,email,seller_id)"
     ).eq("id", maintenance_id).single().execute().data
     if not row or row["company_id"] != user.company_id:
-        raise HTTPException(404, "Manutencao nao encontrada")
+        raise HTTPException(404, "Manutenção não encontrada")
     client = row.get("client") or {}
     if not sees_all_clients(user.role) and client.get("seller_id") != user.user_id:
-        raise HTTPException(404, "Manutencao nao encontrada")
+        raise HTTPException(404, "Manutenção não encontrada")
     return row
 
 
@@ -100,7 +100,7 @@ def update_maintenance(
     _assert_can_manage(user)
     current = _load_maintenance(maintenance_id, user)
     if payload.status and payload.status not in ("scheduled", "completed", "canceled"):
-        raise HTTPException(400, "status invalido")
+        raise HTTPException(400, "status inválido")
     data = {
         k: (v.isoformat() if hasattr(v, "isoformat") else v)
         for k, v in payload.model_dump(exclude_unset=True).items()
